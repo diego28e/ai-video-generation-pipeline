@@ -1,0 +1,49 @@
+# --- Secrets / config ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- ML model weights / caches (huge; never commit) ---
+models/
+checkpoints/
+*.safetensors
+*.ckpt
+*.bin
+*.pt
+*.pth
+.cache/
+huggingface/
+diffusers_cache/
+
+# --- Generated media & job artifacts ---
+outputs/
+renders/
+*.mp4
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+queue_data/
+*.sqlite
+*.db
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
