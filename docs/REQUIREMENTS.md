@@ -20,19 +20,26 @@ reasoning is auditable. It is the source of truth; code follows this, not the re
 | 7 | Render exactly 25 frames @ 8fps | **Per-scene `duration_seconds`; frames/fps derived from the chosen model.** | Different models have different native frame counts/fps; 8fps looks choppy. |
 | 8 | (absent) | **GPU-hour accounting as a first-class feature.** | The 70h budget is a hard ceiling and must be observable in real time. |
 | 9 | (absent) | **Crash recovery / per-scene checkpointing.** | A failure at scene 80/96 must not waste ~3 GPU-hours of completed work. |
+| 10 | Generate audio + video | **Audio already exists (ElevenLabs).** Engine generates *visuals only* and **muxes the supplied audio** into the final MP4. | The narration + transcript already live in the LMS; we only illustrate them. |
+| 11 | Free-running clip count/length | **Audio is the master clock.** Each scene carries exact `start_seconds`/`end_seconds`; total video length == audio length exactly. | Visuals must line up with what the narrator is saying and not drift. |
 
 ---
 
 ## 1. Goal & success criteria
 
-**Goal:** Produce a ~5-minute cinematic video for a short story, with **recurring characters
-that remain visually identifiable across scenes** and a **consistent art style/world**.
+**Goal:** Produce cinematic visuals that **illustrate an existing narrated audio track**
+(ElevenLabs TTS, already in the LMS) for a ~5-minute short story, with **recurring characters
+that remain visually identifiable across scenes** and a **consistent art style/world**. The
+engine does **not** generate audio; it generates moving images and muxes the supplied audio.
 
 **Definition of done (per video):**
-- All scenes rendered and assembled into a single `.mp4` at the target resolution/fps.
+- All scenes rendered and assembled into a single `.mp4`, with the **supplied audio muxed in**.
+- **Total video length equals the audio length exactly**; each scene occupies its assigned
+  `start_seconds`/`end_seconds` window so visuals match what is being narrated.
 - Named characters are recognizably the same person across the scenes they appear in
   (measured at the Phase 2 gate — see §7).
-- Final asset uploaded to the designated S3 location and the orchestrator notified.
+- Final asset uploaded to the `ocw-lesson-content` S3 bucket; the orchestrator is notified
+  with the **CloudFront URL**.
 - Total GPU time per video recorded and within the project's per-video budget envelope.
 
 ---
@@ -43,18 +50,23 @@ that remain visually identifiable across scenes** and a **consistent art style/w
 - Async render engine (FastAPI) on the GCP GPU VM.
 - Keyframe generation with identity + style consistency.
 - Image-to-video animation, per-scene clip encoding, full-video assembly.
-- S3 upload (boto3) and orchestrator callbacks (per-scene, per-job, idle).
+- **Filling each scene's exact `start_seconds`/`end_seconds` window** (camera move / interpolation /
+  multi-clip subdivision) and **muxing the supplied ElevenLabs audio** into a single MP4 whose
+  length matches the audio exactly.
+- S3 upload (boto3) to `ocw-lesson-content` and orchestrator callbacks (per-scene, per-job, idle),
+  returning the **CloudFront URL**.
 - Busy/idle status surface + GPU-hour accounting.
 - Durable job queue + crash recovery on a single GPU.
 - Reproducible environment (venv/container) + GPU verification + benchmark harness.
 
 **Out of scope (Nest.js / AWS side — documented, not built here):**
 - LLM story → scene-array extraction.
+- **Audio generation (already done via ElevenLabs)** and **timestamp→scene alignment** (Nest.js
+  uses ElevenLabs word timestamps to stamp each scene's `start_seconds`/`end_seconds`).
 - Job dispatch, retry policy, and the "queue drained → email me" action.
 - Persisting/serving final videos in the LMS.
 
 **Open decisions (need your input before the relevant phase):**
-- **Audio:** narration (TTS) / music / subtitles — in scope later, or never? Currently **deferred**.
 - **Hosting of reference images** for characters (S3? engine-local?) — see API contract §Characters.
 - **Deployment method** (GitHub Actions self-hosted runner vs. scripted `git pull` + systemd) — Phase 7.
 
@@ -86,6 +98,11 @@ stage (a per-character reference image conditions every keyframe the character a
 The video model only *animates* an already-consistent frame. This isolates the hardest
 problem (identity) to the most controllable stage.
 
+**Audio is the master clock:** the ElevenLabs audio (and per-scene `start_seconds`/`end_seconds`
+computed from its word timestamps by Nest.js) is the authority. The engine renders visuals to
+fill each window, concatenates them, muxes the audio, and forces the final length to match the
+audio exactly. The engine never generates or re-times audio — it only consumes it.
+
 ---
 
 ## 4. Functional requirements
@@ -106,19 +123,27 @@ problem (identity) to the most controllable stage.
 - A `global_style` string is applied to every keyframe for world/style consistency.
 - Per-scene RNG seeds are recorded for reproducibility.
 
-### FR-4 Stage B — animation
-- Animate each keyframe into a short clip using the chosen I2V model.
+### FR-4 Stage B — animation & duration fill (audio-driven)
+- Animate each keyframe into a clip using the chosen I2V model.
 - `motion_strength` and `camera_motion` map to the model's motion controls.
-- Clip length targets the scene's `duration_seconds`.
+- **Each scene must fill its exact window** `scene_duration = end_seconds - start_seconds`.
+  Since I2V native clips are short (~3–4 s), the engine fills the window using, in order of
+  preference for GPU economy: (a) slow camera move / Ken Burns on the keyframe, (b) frame
+  interpolation to stretch a short clip smoothly, (c) multi-clip subdivision for long beats.
+- The chosen fill strategy and its cost are validated at the G2 benchmark gate.
 
-### FR-5 Stage C — encode & assemble
-- Encode each clip to `.mp4` (H.264, web-friendly).
-- Concatenate scene clips in `scene_sequence` order into the final video.
-- (If/when audio is in scope, mux here.)
+### FR-5 Stage C — assemble, mux audio, exact-length
+- Encode each scene clip to `.mp4` (H.264, web-friendly).
+- Concatenate scene clips in `scene_sequence` order to form the silent visual track.
+- **Fetch the supplied `audio_url` and mux it** into the final MP4.
+- **Force total duration to equal the audio length exactly** (trim/pad the final frame as needed);
+  log any per-scene drift between target window and rendered length.
 
 ### FR-6 Delivery
-- Upload the final `.mp4` (and optionally per-scene clips) to S3 via boto3.
-- POST a per-job success/failure webhook with the S3 URL(s) and metadata.
+- Upload the final `.mp4` (and optionally per-scene clips) to the **`ocw-lesson-content`** S3
+  bucket via boto3.
+- POST a per-job success/failure webhook with the **CloudFront URL** (the distribution already
+  fronts that bucket) plus the S3 key and metadata.
 
 ### FR-7 Status & accounting
 - `GET /status` returns `{state, current_job, queue_depth, gpu, cumulative_gpu_seconds, uptime}`.

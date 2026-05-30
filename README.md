@@ -6,8 +6,8 @@ This repository is the **GCP video-generation engine only**. The orchestrating L
 
 ## What this is / is not
 
-- **Is:** an async, single-GPU render engine (FastAPI) that accepts scene jobs, generates identity-consistent keyframes, animates them into clips, assembles an `.mp4`, uploads to S3, and calls back the orchestrator.
-- **Is not:** the LLM story-to-scene parser (that lives in Nest.js), and — for now — not an audio/narration mixer (see open decisions in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md)).
+- **Is:** an async, single-GPU render engine (FastAPI) that accepts scene jobs, generates identity-consistent keyframes, animates them into clips, assembles an `.mp4`, **muxes the supplied ElevenLabs audio** so total length matches the narration exactly, uploads to the `ocw-lesson-content` S3 bucket, and calls back the orchestrator with the CloudFront URL.
+- **Is not:** the LLM story-to-scene parser or the audio generator (both live upstream — ElevenLabs already produced the narration + timestamps; Nest.js maps timestamps to per-scene windows). This engine illustrates existing audio; it does not create or re-time it.
 
 ## Hard constraints driving the design
 

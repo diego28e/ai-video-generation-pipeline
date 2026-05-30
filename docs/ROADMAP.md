@@ -39,8 +39,11 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 - Implement the chosen keyframe generator + character reference conditioning + `global_style`.
 - Seed recording, VRAM-safe load/offload.
 
-## Phase 5 — Stage B+C: animation, encode, assemble  ⚙️
-- I2V animation per keyframe; `.mp4` encode (H.264); concatenate scenes into final video.
+## Phase 5 — Stage B+C: animation, duration-fill, assemble + audio mux  ⚙️
+- I2V animation per keyframe; fill each scene's exact `start..end` window (camera move /
+  interpolation / multi-clip); `.mp4` encode (H.264); concatenate scenes.
+- Fetch the supplied audio and **mux it** (ffmpeg); force total length == audio length.
+- Adds a system dependency: **ffmpeg** (apt) — noted in Phase 1 env setup.
 
 ## Phase 6 — Delivery & lifecycle  ⚙️🚦G4
 - boto3 S3 upload (scoped IAM); real job/scene webhooks; idle callback wired.

@@ -31,6 +31,14 @@ Returns **202 Accepted** immediately.
     "resolution": "1024x576",            // engine may clamp to the model's native size
     "container": "mp4"
   },
+
+  // NEW: the existing ElevenLabs narration. Audio is the master clock; engine muxes it in
+  // and forces final video length == audio length. Engine does NOT generate audio.
+  "audio": {
+    "audio_url": "https://<cloudfront-domain>/stories/8471/narration.mp3",
+    "duration_seconds": 299.0            // authoritative total length (from ElevenLabs)
+  },
+
   "global_style": "cinematic 35mm film, moody teal-orange grade, shallow depth of field, volumetric light",
 
   // NEW: character bible — the basis for identity consistency
@@ -50,7 +58,8 @@ Returns **202 Accepted** immediately.
       "negative_prompt": "blurry, deformed hands, text, watermark",
       "camera_motion": "slow push in",            // REPLACES free-text video_motion_prompt
       "motion_strength": 0.5,                      // REPLACES motion_bucket_id; 0..1, mapped per-model
-      "duration_seconds": 3.0,                     // REPLACES fixed 25-frame/8fps
+      "start_seconds": 0.0,                        // window start on the audio master clock
+      "end_seconds": 11.5,                         // window end; engine fills this exact duration
       "seed": null                                 // optional; engine generates+records if null
     }
   ],
@@ -60,11 +69,16 @@ Returns **202 Accepted** immediately.
     "secret_ref": "managed-by-engine-env"          // shared secret identifier, not the secret itself
   },
   "delivery": {
-    "s3_bucket": "lms-genai-videos",
+    "s3_bucket": "ocw-lesson-content",   // CloudFront already fronts this bucket
     "s3_prefix": "stories/8471/"
   }
 }
 ```
+
+> **Timing invariant:** scene windows must be **contiguous and gapless**, with
+> `scenes[0].start_seconds == 0`, each `start_seconds == previous end_seconds`, and the final
+> `end_seconds == audio.duration_seconds`. The engine validates this and rejects (`400`) on a gap,
+> overlap, or total-length mismatch.
 
 ### Responses
 - `202 Accepted` → `{ "job_id": "lms-story-8471", "status": "queued", "queue_position": 2 }`
@@ -120,8 +134,10 @@ All POSTed to `callback.webhook_url`, HMAC-signed (`X-Signature`).
   "type": "job.completed",
   "job_id": "lms-story-8471",
   "status": "done",
-  "video_url": "s3://lms-genai-videos/stories/8471/final.mp4",
-  "scene_clip_urls": [ "s3://.../scene_001.mp4" ],   // optional
+  "video_url": "https://<cloudfront-domain>/stories/8471/final.mp4",   // CloudFront, not s3://
+  "s3_key": "stories/8471/final.mp4",
+  "bucket": "ocw-lesson-content",
+  "duration_seconds": 299.0,                          // == audio length
   "gpu_seconds_used": 12880,
   "seeds": { "1": 12345, "2": 67890 }                // for reproducibility
 }
@@ -147,3 +163,7 @@ All POSTed to `callback.webhook_url`, HMAC-signed (`X-Signature`).
 3. **Idle handling:** on `engine.idle`, send Diego the shutdown email / trigger stop.
 4. **Idempotency:** reuse the same `job_id` on retries so the engine dedupes.
 5. **Reference images:** host character reference images somewhere the engine can fetch (S3 with a readable URL is fine), or we define an upload endpoint — **open decision**.
+6. **Audio + timing:** you own the ElevenLabs word-timestamp → scene alignment. Send a fetchable
+   `audio.audio_url`, the authoritative `audio.duration_seconds`, and per-scene
+   `start_seconds`/`end_seconds` that satisfy the timing invariant above. The engine consumes
+   audio and timings; it does not generate or re-align them.
