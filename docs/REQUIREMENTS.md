@@ -129,9 +129,12 @@ audio exactly. The engine never generates or re-times audio — it only consumes
   enqueues it, and returns **202 Accepted** with a `job_id` **immediately**.
 - Requests are authenticated (shared secret / HMAC). Unauthenticated requests are rejected.
 
-### FR-2 Durable, serialized queue
-- Jobs persist to disk so a process restart resumes pending/in-progress work.
-- Exactly one job renders at a time (single GPU). Queue position is queryable.
+### FR-2 Serialized execution (the LMS owns the durable queue)
+- The **LMS owns the durable job queue** (BullMQ + Postgres as source of truth); it paces work,
+  retries with the same `job_id`, and reconciles. The engine does **not** run a broker/DB queue.
+- The engine keeps a small in-memory worker that renders **exactly one job at a time** (single GPU)
+  and returns `queue_position` on `202`. Durability for crash/restart comes from per-job
+  **filesystem checkpoints** under `WORK_DIR` (see FR-9), not a database.
 
 ### FR-3 Stage A — identity-locked keyframe
 - For each scene, generate a 16:9 cinematic keyframe at the model's native target size.
@@ -173,9 +176,10 @@ audio exactly. The engine never generates or re-times audio — it only consumes
 - Optional self-managed `IDLE_SHUTDOWN_MINUTES`: the engine may initiate OS shutdown after N
   idle minutes (off by default during development).
 
-### FR-9 Crash recovery
-- Completed scenes are checkpointed (keyframe + clip persisted). On restart, an interrupted
-  job resumes from the first incomplete scene rather than re-rendering completed work.
+### FR-9 Crash recovery (filesystem checkpoints)
+- Completed scenes are checkpointed under `WORK_DIR/{job_id}/` (keyframe + clip + a small
+  `state.json`). When the LMS re-dispatches the same `job_id` after a crash/restart, the engine
+  resumes from the first incomplete scene rather than re-rendering completed work (saves GPU).
 
 ---
 

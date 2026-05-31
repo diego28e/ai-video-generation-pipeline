@@ -39,6 +39,7 @@ renders/
 *.jpeg
 !docs/**/*.png
 queue_data/
+work/
 *.sqlite
 *.db
 
