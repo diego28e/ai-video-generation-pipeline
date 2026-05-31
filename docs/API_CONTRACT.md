@@ -95,7 +95,7 @@ Returns **202 Accepted** immediately.
   "current_job": null,              // or { "job_id": "...", "scene": 12, "scenes_total": 96 }
   "queue_depth": 0,
   "gpu": { "name": "NVIDIA L4", "vram_total_mb": 24564, "vram_used_mb": 812 },
-  "cumulative_gpu_seconds": 18243,  // toward the ~70h (252000s) budget
+  "cumulative_gpu_seconds": 18243,  // toward the ~30h (108000s) budget
   "uptime_seconds": 4012,
   "contract_version": "1"
 }

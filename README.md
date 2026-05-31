@@ -11,14 +11,16 @@ This repository is the **GCP video-generation engine only**. The orchestrating L
 
 ## Hard constraints driving the design
 
-- **GPU budget: ~70 hours total.** Every design choice is measured against this. We benchmark before we build at scale.
+- **GPU budget: ~30 hours total; immediate goal ≥3 finished 5-min videos.** With ~10 GPU-h/video of headroom, the binding constraint is now **consistency/quality, not speed.** We benchmark before we build at scale.
 - **Single GPU** (1× NVIDIA L4, 24 GB VRAM today; possibly V100 later). Jobs are serialized.
 - **Cross-cloud:** orchestrator on AWS, engine on GCP. Results go straight to AWS S3 to avoid egress friction.
 
 ## Status
 
-Phase 1 — Reproducible environment. G1 verification scripts delivered; run them on the GCP VM
-per [`docs/SETUP.md`](docs/SETUP.md). See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phases.
+Phase 2 — Model evaluation & benchmark. **G1 passed** (L4 / 22 GiB / CUDA 12.1; SDXL keyframe
+15.6 s, 5.11 GiB). Now benchmarking the video stage + identity to lock the stack within the
+~30 GPU-hour budget — see [`docs/BENCHMARK.md`](docs/BENCHMARK.md). Dev workflow in
+[`docs/WORKFLOW.md`](docs/WORKFLOW.md); phases in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Key documents
 

@@ -1,46 +1,82 @@
-# VM Setup Runbook — Phase 1 (Gate G1)
+# VM Setup Runbook (Phase 1 / Gate G1)
 
-Run these on the **GCP VM** (Ubuntu 24.04, NVIDIA L4, driver 580). They cannot be
-run on a non-GPU machine. Goal: a reproducible venv whose torch sees the GPU, plus a
-one-image generation smoke test. **G1 passes when both verification scripts succeed.**
+Run on the **GCP VM** (Ubuntu 24.04, NVIDIA L4, driver 580). Cannot run on a non-GPU box.
 
-## Prerequisites
-- VM is on, you're SSH'd in, and the repo is cloned/pulled into the working dir.
-- `nvidia-smi` shows the L4 (the system deps script will check this).
+**Prerequisite:** get the code on the VM via GitHub — see [`WORKFLOW.md`](WORKFLOW.md). The
+recommended location is `~/ai-video-generation-pipeline`. Run everything below from that directory.
 
-## Steps
+> **Golden rule:** every Python command uses the venv interpreter **explicitly** —
+> `.venv/bin/python ...` — so we never hit system Python by accident. The scripts also
+> self-check and **refuse to run** outside the venv. Activation (`source .venv/bin/activate`)
+> is optional and only a convenience.
+
+---
+
+## 0. (Once) clean up the accidental system install
+
+Earlier, `diffusers/transformers/accelerate` got installed into user site-packages via
+`--break-system-packages`. A venv ignores user site-packages, so this is not fatal — but remove
+it to avoid confusion:
 
 ```bash
-# From the project root on the VM:
-
-# 1. System packages (sudo): ffmpeg, venv toolchain, build tools + GPU check
-bash scripts/install_system_deps.sh
-
-# 2. Create the venv and install torch(cu121) + requirements, then verify GPU
-bash scripts/setup_env.sh
-
-# 3. Activate the venv for any subsequent commands
-source .venv/bin/activate
-
-# 4. Capture the exact reproducible lockfile (do this ONLY after step 2 passed)
-pip freeze > requirements.lock.txt
-
-# 5. Full G1 keyframe smoke test (downloads SDXL ~7GB on first run)
-python scripts/verify_keyframe.py
+# Run with SYSTEM python on purpose here (this targets ~/.local, not the venv):
+python3 -m pip uninstall -y diffusers transformers accelerate || true
 ```
 
-## G1 acceptance checklist
-- [ ] `scripts/verify_gpu.py` prints `[OK] GPU verification passed.`
-  - device name is **NVIDIA L4**, VRAM ~**24 GiB**, compiled CUDA **12.1**.
-- [ ] `scripts/verify_keyframe.py` prints `[OK]` and writes `outputs/g1_keyframe.png`.
-  - note the reported **render time** and **peak VRAM** — these feed the G2 budget math.
-- [ ] `requirements.lock.txt` committed (the true reproducible artifact).
+Going forward, never use `--break-system-packages`. Everything lives in `.venv`.
 
-## Notes
-- **No `--break-system-packages`.** Everything lives in `.venv`; system Python is untouched.
-- If torch fails to see the GPU, do **not** patch around it — re-check driver/CUDA first and
-  report back; the cu121 pins in `setup_env.sh` are the only thing to adjust.
-- The first keyframe run is slow due to the model download; the *render time* (not total
-  wall-clock) is the number that matters for budgeting.
-- Bring the lockfile back into the repo so the next VM (or the future V100 box) reproduces
-  the exact environment.
+---
+
+## 1. System packages (sudo)
+
+```bash
+bash scripts/install_system_deps.sh
+```
+✓ You should see `nvidia-smi` print the **NVIDIA L4** and an `ffmpeg` version line.
+
+## 2. Create the venv + install torch(cu121) + requirements
+
+```bash
+bash scripts/setup_env.sh
+```
+✓ It prints `==> Using interpreter: .../.venv/bin/python`, installs **torch 2.5.1+cu121**
+(matching your verified stack), then runs the GPU check automatically.
+✓ Ends with `[OK] GPU verification passed.`
+
+If you ever want to re-run the GPU check by hand:
+```bash
+.venv/bin/python scripts/verify_gpu.py
+```
+
+## 3. Freeze the reproducible lockfile (only after step 2 passed)
+
+```bash
+.venv/bin/python -m pip freeze > requirements.lock.txt
+```
+This is the **true** reproducible artifact — commit it.
+
+## 4. Full G1 keyframe smoke test (downloads SDXL ~7GB first run)
+
+```bash
+.venv/bin/python scripts/verify_keyframe.py | tee outputs/g1_keyframe.txt
+```
+✓ Prints `[OK]`, writes `outputs/g1_keyframe.png`, and reports **render time** + **peak VRAM**.
+
+---
+
+## G1 acceptance checklist
+- [ ] `verify_gpu.py` → `[OK]`, device **NVIDIA L4**, ~**22–24 GiB**, CUDA **12.1**.
+- [ ] `verify_keyframe.py` → `[OK]`, image written, render time + VRAM recorded.
+- [ ] `requirements.lock.txt` committed.
+
+**G1 status (recorded):** ✅ PASSED — L4 / 22.0 GiB / CUDA 12.1; keyframe **15.6s**, peak **5.11 GiB**.
+
+---
+
+## Troubleshooting
+- **Script says "Not running inside the project venv":** good — that's the guard. Use the exact
+  `.venv/bin/python ...` command it prints, or run `bash scripts/setup_env.sh` if `.venv` is missing.
+- **torch can't see the GPU in the venv:** do not work around it. Re-check `nvidia-smi`, then the
+  cu121 pins in `scripts/setup_env.sh` are the only thing to adjust. Report back.
+- **HF rate-limit / gated model warnings:** set a token — `huggingface-cli login` or
+  `export HF_TOKEN=<token>`. Required for gated models (e.g. SVD-XT) in Phase 2.

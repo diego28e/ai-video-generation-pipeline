@@ -13,17 +13,24 @@ reasoning is auditable. It is the source of truth; code follows this, not the re
 |---|---|---|---|
 | 1 | `video_motion_prompt` steers motion | **Removed as a text driver.** Motion is controlled by model-specific parameters. | SVD-XT (and most current I2V models) take an **image**, not a text motion prompt. The field was unusable as written. |
 | 2 | SDXL per-scene keyframes | **Identity-locked keyframe stage** (reference image + identity-preserving generation). | Recurring-character identity is the stated #1 goal; independent SDXL gens cannot deliver it. |
-| 3 | Lock stack to SDXL + SVD-XT | **Swappable generator interface; stack chosen at the Phase 2 benchmark gate.** | The provisioned stack is weakest on consistency and may be too slow for the 70h budget. Decision must be data-driven. |
+| 3 | Lock stack to SDXL + SVD-XT | **Swappable generator interface; stack chosen at the Phase 2 benchmark gate.** | The provisioned stack is weakest on consistency and may be too slow for the GPU-hour budget. Decision must be data-driven. |
 | 4 | `--break-system-packages` (PEP 668 bypass) | **Virtual environment (venv) or container; no system-package writes.** | Reproducibility and snapshot safety. `python3-venv` is already installed. |
 | 5 | FastAPI webhook listener (implies always-up server) | **Session-based always-on engine + busy/idle status + idle callback.** | The VM is off by default and GPU hours are scarce; orchestration must minimize idle GPU time. |
 | 6 | `motion_bucket_id` (SVD-specific) in the contract | **Generalized `motion_strength` + `camera_motion`**, mapped per-model. | Keeps the public contract independent of the chosen model. |
 | 7 | Render exactly 25 frames @ 8fps | **Per-scene `duration_seconds`; frames/fps derived from the chosen model.** | Different models have different native frame counts/fps; 8fps looks choppy. |
-| 8 | (absent) | **GPU-hour accounting as a first-class feature.** | The 70h budget is a hard ceiling and must be observable in real time. |
+| 8 | (absent) | **GPU-hour accounting as a first-class feature.** | The GPU-hour budget is a hard ceiling and must be observable in real time. |
 | 9 | (absent) | **Crash recovery / per-scene checkpointing.** | A failure at scene 80/96 must not waste ~3 GPU-hours of completed work. |
 | 10 | Generate audio + video | **Audio already exists (ElevenLabs).** Engine generates *visuals only* and **muxes the supplied audio** into the final MP4. | The narration + transcript already live in the LMS; we only illustrate them. |
 | 11 | Free-running clip count/length | **Audio is the master clock.** Each scene carries exact `start_seconds`/`end_seconds`; total video length == audio length exactly. | Visuals must line up with what the narrator is saying and not drift. |
 
 ---
+
+## 0b. Current production target (as of 2026-05-30)
+
+The GPU budget is now **~30 GPU-hours** (down from 70), and the immediate goal is **at least 3
+finished ~5-min videos**. This *loosens* the per-video time pressure dramatically (~10 GPU-h/video
+of headroom), so the binding constraint shifts from **speed** to **identity consistency &
+quality**. Phase 2 prioritizes the identity benchmark accordingly; raw clip speed is secondary.
 
 ## 1. Goal & success criteria
 
@@ -155,7 +162,7 @@ audio exactly. The engine never generates or re-times audio — it only consumes
 ### FR-7 Status & accounting
 - `GET /status` returns `{state, current_job, queue_depth, gpu, cumulative_gpu_seconds, uptime}`.
 - `GET /jobs/{id}` returns progress (`scenes_done/scenes_total`, ETA, per-scene status).
-- The engine tracks cumulative GPU busy seconds (toward the 70h budget) and exposes it.
+- The engine tracks cumulative GPU busy seconds (toward the GPU-hour budget) and exposes it.
 
 ### FR-8 Idle lifecycle
 - When the queue drains and no job is running, the engine POSTs an **idle callback** to the
@@ -197,7 +204,7 @@ No phase advances without its gate passing.
 - **G1 (Env):** fresh venv reproduces a working `torch.cuda.is_available() == True` + a 1-image SDXL/keyframe gen.
 - **G2 (Benchmark — critical):** measured wall-clock per keyframe and per clip on the L4 for each
   candidate stack; extrapolated GPU-hours per 5-min video; identity-consistency spot check.
-  **This gate decides the model stack and confirms the 70h budget is feasible.**
+  **This gate decides the model stack and confirms the GPU-hour budget is feasible.**
 - **G3 (Engine):** queue + status + callbacks work end-to-end against a stubbed generator.
 - **G4 (Quality):** a full short story renders with characters recognizable across scenes.
 
@@ -207,7 +214,7 @@ No phase advances without its gate passing.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Per-clip render too slow for 70h budget | Few/no full videos | G2 benchmark before scale; consider faster model / fewer-longer clips |
+| Per-clip render too slow for GPU-hour budget | Few/no full videos | G2 benchmark before scale; consider faster model / fewer-longer clips |
 | Identity drift across scenes | Fails primary goal | Reference-conditioned keyframes; per-character embedding; G4 gate |
 | VRAM OOM with two pipelines | Crashes | Sequential load + offload; measured at G1/G2 |
 | Crash mid-batch wastes GPU hours | Budget burn | Per-scene checkpointing (FR-9) |

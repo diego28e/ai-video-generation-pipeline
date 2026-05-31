@@ -14,17 +14,17 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 - `git init` + first commit (you run the commands).
 - **Deliverable:** reviewable direction + initialized repo. No runtime code yet.
 
-## Phase 1 — Reproducible environment & GPU verification  ⚙️🚦G1
-- `venv` bootstrap script (replaces `--break-system-packages`).
-- Pinned base `requirements.txt` (torch cu121 + diffusers/transformers/accelerate/safetensors).
-- `scripts/verify_gpu.py` (CUDA available, VRAM report, one tiny keyframe gen).
-- **Gate G1:** fresh venv on the VM reproduces a working GPU + one generated image.
+## Phase 1 — Reproducible environment & GPU verification  ⚙️🚦G1  ✅ PASSED
+- `venv` bootstrap script (replaces `--break-system-packages`) + venv guard in every script.
+- Pinned base `requirements.txt` (torch 2.5.1+cu121 + diffusers/transformers/accelerate/...).
+- `scripts/verify_gpu.py` + `scripts/verify_keyframe.py`. See `docs/SETUP.md`.
+- **Gate G1 result:** L4 / 22.0 GiB / CUDA 12.1; SDXL keyframe **15.6 s**, peak **5.11 GiB**.
 
-## Phase 2 — Model evaluation & benchmark  🔬🚦G2  ← **decides the stack**
-- Evaluate keyframe identity options (e.g. SDXL+IP-Adapter/InstantID, Flux+PuLID) and I2V
-  options (e.g. SVD-XT, LTX-Video, CogVideoX) that fit 24 GB.
-- Measure wall-clock per keyframe + per clip; extrapolate GPU-hours per 5-min video.
-- Identity-consistency spot check across 3–4 scenes.
+## Phase 2 — Model evaluation & benchmark  🔬🚦G2  ← **current; decides the stack**
+- See `docs/BENCHMARK.md` for protocol + the live results table.
+- **Step 2a (now):** video-stage baseline — `scripts/bench_svd.py` (SVD-XT, the provisioned stack).
+- **Step 2b:** if SVD-XT misses the budget, benchmark a faster alternative (LTX-Video) before deciding.
+- **Step 2c:** identity spot-check — SDXL + identity adapter across 3 scenes.
 - **Gate G2:** stack locked with data; 70h budget feasibility confirmed (or scope adjusted).
 - *(This is where your "evaluate alternatives" decision is cashed in, with real numbers.)*
 

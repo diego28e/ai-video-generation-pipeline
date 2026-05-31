@@ -17,6 +17,9 @@ import os
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _env_guard import ensure_project_venv  # noqa: E402
+
 OUT_DIR = "outputs"
 OUT_PATH = os.path.join(OUT_DIR, "g1_keyframe.png")
 MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -30,6 +33,7 @@ def fail(msg: str) -> "NoReturn":  # type: ignore[name-defined]
 
 
 def main() -> None:
+    ensure_project_venv()
     try:
         import torch
         from diffusers import StableDiffusionXLPipeline

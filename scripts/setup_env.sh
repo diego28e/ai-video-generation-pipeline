@@ -10,9 +10,10 @@
 set -euo pipefail
 
 # --- Pins for the CUDA build (kept here, not in requirements.txt, so the index
-#     URL is explicit and unambiguous). Adjust ONLY if G1 fails on the VM. ---
-TORCH_VERSION="2.4.1"
-TORCHVISION_VERSION="0.19.1"
+#     URL is explicit and unambiguous). These MATCH the torch already verified on
+#     the VM (torch 2.5.1+cu121, driver 580). Adjust ONLY if G1 fails. ---
+TORCH_VERSION="2.5.1"
+TORCHVISION_VERSION="0.20.1"
 CUDA_INDEX="https://download.pytorch.org/whl/cu121"
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,26 +36,38 @@ else
   echo "==> Reusing existing .venv"
 fi
 
+# Use the venv interpreter EXPLICITLY (no reliance on PATH/activation) so we can
+# never accidentally hit system Python again.
+VENV_PY="$PROJECT_DIR/.venv/bin/python"
+
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
+# Verify we are actually inside the venv before installing anything.
+ACTUAL="$("$VENV_PY" -c 'import sys; print(sys.prefix)')"
+if [ "$ACTUAL" != "$PROJECT_DIR/.venv" ]; then
+  echo "!! venv sanity check failed: sys.prefix=$ACTUAL (expected $PROJECT_DIR/.venv)"
+  exit 1
+fi
+echo "==> Using interpreter: $VENV_PY"
+
 echo "==> Upgrading pip toolchain"
-python -m pip install --upgrade pip wheel setuptools
+"$VENV_PY" -m pip install --upgrade pip wheel setuptools
 
 echo "==> Installing torch ${TORCH_VERSION} (+cu121) from ${CUDA_INDEX}"
-python -m pip install \
+"$VENV_PY" -m pip install \
   "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
   --index-url "${CUDA_INDEX}"
 
 echo "==> Installing project requirements"
-python -m pip install -r requirements.txt
+"$VENV_PY" -m pip install -r requirements.txt
 
 echo
 echo "==> Environment ready. Verifying GPU..."
-python scripts/verify_gpu.py
+"$VENV_PY" scripts/verify_gpu.py
 
 echo
 echo "==> If GPU verification passed, freeze the lockfile for reproducibility:"
-echo "      pip freeze > requirements.lock.txt"
+echo "      $VENV_PY -m pip freeze > requirements.lock.txt"
 echo "==> Then run the full G1 keyframe check (downloads SDXL weights, ~7GB):"
-echo "      python scripts/verify_keyframe.py"
+echo "      $VENV_PY scripts/verify_keyframe.py"

@@ -9,8 +9,13 @@ Run on the VM:  python scripts/verify_gpu.py
 """
 from __future__ import annotations
 
+import os
 import sys
 import time
+
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _env_guard import ensure_project_venv  # noqa: E402
 
 
 def fail(msg: str) -> "NoReturn":  # type: ignore[name-defined]
@@ -19,6 +24,7 @@ def fail(msg: str) -> "NoReturn":  # type: ignore[name-defined]
 
 
 def main() -> None:
+    ensure_project_venv()
     try:
         import torch
     except Exception as exc:  # noqa: BLE001
