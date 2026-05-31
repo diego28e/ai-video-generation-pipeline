@@ -28,12 +28,14 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 - **Gate G2:** stack locked with data; 70h budget feasibility confirmed (or scope adjusted).
 - *(This is where your "evaluate alternatives" decision is cashed in, with real numbers.)*
 
-## Phase 3 — Engine skeleton (no real generation)  ⚙️🚦G3
-- FastAPI app: `/health`, `/status`, `POST /jobs`, `GET /jobs/{id}`.
-- Durable queue + single-worker loop + **stub** generator.
-- Auth (bearer + HMAC), structured logging, GPU-hour accounting scaffold.
-- Outbound webhooks (scene/job/idle) against a local mock receiver.
-- **Gate G3:** submit a job → 202 → progress → completion + idle callback, end-to-end, no GPU.
+## Phase 3 — Engine skeleton (no real generation)  ⚙️🚦G3  ✅ PASSED
+- FastAPI app: `/health`, `/status`, `POST /jobs`, `GET /jobs/{id}` (`app/`).
+- In-memory single-GPU worker + **stub** generator; per-job filesystem checkpoints (`WORK_DIR`).
+- Auth (bearer + HMAC over raw body); GPU-second accounting; v1.1 payload validation
+  (timing invariant, `characters_present` ⊆ `characters[]`).
+- Outbound webhooks (`scene_completed`/`job_completed`/`job_failed`/`idle`) — HMAC-signed.
+- **Gate G3 result (verified locally, no GPU):** 202 → progress → done; idle callback delivered;
+  idempotent re-submit → 200; bad token/HMAC → 401; bad timing → 400. See `docs/ENGINE.md`.
 
 ## Phase 4 — Stage A: identity-locked keyframes  ⚙️
 - Implement the chosen keyframe generator + character reference conditioning + `global_style`.

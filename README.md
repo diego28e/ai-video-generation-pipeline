@@ -17,10 +17,11 @@ This repository is the **GCP video-generation engine only**. The orchestrating L
 
 ## Status
 
-Phase 2 — Model evaluation & benchmark. **G1 passed** (L4 / 22 GiB / CUDA 12.1; SDXL keyframe
-15.6 s, 5.11 GiB). Now benchmarking the video stage + identity to lock the stack within the
-~30 GPU-hour budget — see [`docs/BENCHMARK.md`](docs/BENCHMARK.md). Dev workflow in
-[`docs/WORKFLOW.md`](docs/WORKFLOW.md); phases in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+**Phase 3 complete — engine skeleton (G3 passed).** Stack locked at G2 (SDXL+IP-Adapter → SVD-XT;
+~5.6 GPU-h for 3 videos; identity greenlit). The FastAPI engine (`app/`) runs the full
+job → progress → webhook → idle loop against a stub generator — verified end-to-end with no GPU
+(see [`docs/ENGINE.md`](docs/ENGINE.md)). **Next: Phase 4** — swap the stub for real SDXL+IP-Adapter
+keyframes. Phases in [`docs/ROADMAP.md`](docs/ROADMAP.md); dev loop in [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
 
 ## Key documents
 
