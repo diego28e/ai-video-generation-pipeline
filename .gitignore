@@ -43,6 +43,10 @@ work/
 *.sqlite
 *.db
 
+# --- Local job files (keep real CDN/asset URLs out of git; commit only templates) ---
+samples/*
+!samples/*.template.json
+
 # --- OS / editor ---
 .DS_Store
 Thumbs.db

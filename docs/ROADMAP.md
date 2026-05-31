@@ -37,7 +37,14 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 - **Gate G3 result (verified locally, no GPU):** 202 → progress → done; idle callback delivered;
   idempotent re-submit → 200; bad token/HMAC → 401; bad timing → 400. See `docs/ENGINE.md`.
 
-## Phase 4 — Stage A: identity-locked keyframes  ⚙️
+## Phase 4 — Stage A: identity-locked keyframes  ⚙️  (built; verify on VM)
+- `app/generators/keyframe.py` — `KeyframeGenerator` (SDXL fp16 + IP-Adapter, no offload):
+  conditions each scene on the present character's primary reference; applies `global_style`;
+  neutralizes identity (scale 0) for no-character scenes; records the seed.
+- `scripts/gen_keyframes.py` — verify on a full v1.1 job (`--job`) or quick 3-scene smoke
+  (`--reference`). `samples/the_weight.template.json` is a fill-in starting point.
+- **Verify on the VM:** keyframes for the story's scenes are identity-consistent in the real
+  `global_style`. Then Phase 5 wires this into the engine's real generator. See `docs/PHASE4.md`.
 - Implement the chosen keyframe generator + character reference conditioning + `global_style`.
 - Seed recording, VRAM-safe load/offload.
 

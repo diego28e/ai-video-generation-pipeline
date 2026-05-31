@@ -19,9 +19,12 @@ This repository is the **GCP video-generation engine only**. The orchestrating L
 
 **Phase 3 complete — engine skeleton (G3 passed).** Stack locked at G2 (SDXL+IP-Adapter → SVD-XT;
 ~5.6 GPU-h for 3 videos; identity greenlit). The FastAPI engine (`app/`) runs the full
-job → progress → webhook → idle loop against a stub generator — verified end-to-end with no GPU
-(see [`docs/ENGINE.md`](docs/ENGINE.md)). **Next: Phase 4** — swap the stub for real SDXL+IP-Adapter
-keyframes. Phases in [`docs/ROADMAP.md`](docs/ROADMAP.md); dev loop in [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
+job → progress → webhook → idle loop against a stub generator — verified end-to-end with no GPU (see [`docs/ENGINE.md`](docs/ENGINE.md)).
+
+**Phase 4 built — identity-locked keyframes (Stage A):** `app/generators/keyframe.py` (SDXL +
+IP-Adapter) + `scripts/gen_keyframes.py`; verify on the VM per [`docs/PHASE4.md`](docs/PHASE4.md).
+**Next: Phase 5** — SVD-XT animation + Ken Burns fill + audio mux, wired into the engine's real
+generator. Phases in [`docs/ROADMAP.md`](docs/ROADMAP.md); dev loop in [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
 
 ## Key documents
 

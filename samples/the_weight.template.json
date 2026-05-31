@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.1",
+  "job_id": "the-weight-local-test",
+  "story": { "story_id": "demo", "slug": "the-weight", "title": "The Weight", "language": "en", "cefr_level": "B1" },
+  "audio": { "url": "https://your-cdn.example.com/path/to/The_weight.mp3", "duration_seconds": 299.42 },
+  "output": {
+    "bucket": "your-content-bucket",
+    "key_prefix": "your-prefix/stories/the-weight/video",
+    "aspect_ratio": "16:9", "container": "mp4", "video_codec": "h264"
+  },
+  "global_style": "Painterly storybook illustration, warm muted palette, 1950s small-town.",
+  "characters": [
+    {
+      "id": "the-boy",
+      "name": "The Boy",
+      "subject_type": "person",
+      "description": "An ~8-year-old boy carrying heavy bags home at night.",
+      "appearance_prompt": "An 8-year-old boy, slight build, short dark hair, oversized grey coat",
+      "reference_images": [
+        { "url": "https://your-cdn.example.com/path/to/characters/the-boy.png", "is_primary": true }
+      ]
+    }
+  ],
+  "scenes": [
+    { "sequence": 1, "start_seconds": 0.0,   "end_seconds": 25.0,  "characters_present": [],          "camera_motion": "push_in",  "motion_strength": 0.2,
+      "keyframe_prompt": "wide establishing shot of an empty small-town street just past midnight, wet cobblestones, a small park to one side, quiet and still" },
+    { "sequence": 2, "start_seconds": 25.0,  "end_seconds": 70.0,  "characters_present": ["the-boy"], "camera_motion": "static",   "motion_strength": 0.15,
+      "keyframe_prompt": "a small boy stands near a dark park path at night, seen from behind, holding a large heavy bag in each hand" },
+    { "sequence": 3, "start_seconds": 70.0,  "end_seconds": 130.0, "characters_present": ["the-boy"], "camera_motion": "pan_left", "motion_strength": 0.25,
+      "keyframe_prompt": "following a small boy walking down empty night streets carrying two heavy bags, the narrator's pov behind him" },
+    { "sequence": 4, "start_seconds": 130.0, "end_seconds": 200.0, "characters_present": ["the-boy"], "camera_motion": "push_in",  "motion_strength": 0.3,
+      "keyframe_prompt": "the boy enters an old building doorway as a dim red light rises around the walls, eerie and unnatural" },
+    { "sequence": 5, "start_seconds": 200.0, "end_seconds": 260.0, "characters_present": ["the-boy"], "camera_motion": "tilt_up",  "motion_strength": 0.25,
+      "keyframe_prompt": "climbing a dim red-lit stairwell of an old building, deep shadows in the corners, the boy a few steps ahead" },
+    { "sequence": 6, "start_seconds": 260.0, "end_seconds": 299.42,"characters_present": ["the-boy"], "camera_motion": "push_in",  "motion_strength": 0.4,
+      "keyframe_prompt": "a third-floor door opens on its own; the small boy turns to face the viewer, his eyes completely black, dread" }
+  ],
+  "callback": { "url": "https://your-lms-domain.example.com/webhooks/story-video", "events": ["scene_completed","job_completed","job_failed","idle"] }
+}
