@@ -19,7 +19,12 @@ The pipeline has two GPU stages, benchmarked independently:
 ### Keyframe stage
 | Model | Steps | Size | Render time | Peak VRAM | Notes |
 |-------|-------|------|-------------|-----------|-------|
-| SDXL base 1.0 | 30 | 1024×576 | **15.6 s** | **5.11 GiB** | G1 baseline; no identity adapter yet |
+| SDXL base 1.0 | 30 | 1024×576 | **15.6 s / 48.2 s** | **5.11 GiB** | two cold runs varied 3.6× |
+
+> **L4 power note:** the keyframe denoise loop measured 3.25 it/s once and 1.11 s/it another time
+> — same code/model. The L4 is a **72 W** card; sustained clocks vary widely. **Lesson:** trust
+> warmed-up, multi-run **minimums**, not single cold runs. `bench_svd.py` now does warmup + N runs
+> and prints `nvidia-smi` power/clock each run so we can see throttling. Use `min` for planning.
 
 ### Video stage
 | Model | Frames | fps | Clip len | Render time | Peak VRAM | Status |
@@ -32,8 +37,10 @@ The pipeline has two GPU stages, benchmarked independently:
 ## How to run (on the VM, inside the venv)
 
 ```bash
+mkdir -p outputs                 # safety; .gitkeep also ships the dir
 # Video-stage baseline (SVD-XT). SVD-XT is GATED on HF — authenticate first:
 huggingface-cli login            # or: export HF_TOKEN=<token>
+# Defaults: 1 warmup + 3 timed runs, reports the MIN and prints GPU power/clock per run.
 .venv/bin/python scripts/bench_svd.py | tee outputs/bench_svd.txt
 ```
 

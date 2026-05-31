@@ -1,0 +1,2 @@
+# Keeps the outputs/ directory present after clone so `tee outputs/...` and
+# scripts that write here work immediately. Generated media is gitignored.

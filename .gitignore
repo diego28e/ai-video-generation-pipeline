@@ -30,7 +30,8 @@ huggingface/
 diffusers_cache/
 
 # --- Generated media & job artifacts ---
-outputs/
+outputs/*
+!outputs/.gitkeep
 renders/
 *.mp4
 *.png

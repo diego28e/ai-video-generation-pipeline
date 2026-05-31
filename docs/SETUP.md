@@ -58,6 +58,7 @@ This is the **true** reproducible artifact — commit it.
 ## 4. Full G1 keyframe smoke test (downloads SDXL ~7GB first run)
 
 ```bash
+mkdir -p outputs   # safety: ensures the tee logfile target exists
 .venv/bin/python scripts/verify_keyframe.py | tee outputs/g1_keyframe.txt
 ```
 ✓ Prints `[OK]`, writes `outputs/g1_keyframe.png`, and reports **render time** + **peak VRAM**.

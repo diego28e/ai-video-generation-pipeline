@@ -17,8 +17,24 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import subprocess
 import sys
 import time
+
+
+def gpu_telemetry() -> str:
+    """Snapshot power/clock/temp so we can see if the 72W L4 is throttling."""
+    query = "power.draw,power.limit,clocks.sm,clocks.max.sm,temperature.gpu,utilization.gpu"
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10, check=True,
+        )
+        vals = [v.strip() for v in out.stdout.strip().split(",")]
+        keys = ["power_W", "power_limit_W", "sm_MHz", "sm_max_MHz", "temp_C", "util_%"]
+        return "  ".join(f"{k}={v}" for k, v in zip(keys, vals))
+    except Exception as exc:  # noqa: BLE001
+        return f"(nvidia-smi unavailable: {exc})"
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _env_guard import ensure_project_venv  # noqa: E402
@@ -43,6 +59,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--noise-aug", type=float, default=0.02)
     p.add_argument("--decode-chunk-size", type=int, default=8, help="lower = less VRAM at decode")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--runs", type=int, default=3, help="timed runs; reports the MIN (best clock)")
+    p.add_argument("--warmup", type=int, default=1, help="untimed warmup renders to settle clocks")
     # Budget model inputs:
     p.add_argument("--story-seconds", type=float, default=299.0, help="target video length")
     p.add_argument("--scenes", type=int, default=35, help="assumed narration beats for fill strategy")
@@ -86,23 +104,39 @@ def main() -> None:
     print(f"    loaded in {load_dt:.1f}s")
 
     image = load_image(args.keyframe).resize((W, H))
-    generator = torch.manual_seed(args.seed)
+
+    def render_once() -> "tuple[float, object]":
+        generator = torch.manual_seed(args.seed)
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        out = pipe(
+            image,
+            num_frames=args.num_frames,
+            fps=args.fps,
+            motion_bucket_id=args.motion_bucket_id,
+            noise_aug_strength=args.noise_aug,
+            decode_chunk_size=args.decode_chunk_size,
+            generator=generator,
+        ).frames[0]
+        torch.cuda.synchronize()
+        return time.perf_counter() - t0, out
 
     print(f"==> Animating: {args.num_frames} frames, motion_bucket_id={args.motion_bucket_id}")
+    print(f"    GPU before     : {gpu_telemetry()}")
+
+    for w in range(args.warmup):
+        wt, _ = render_once()
+        print(f"    [warmup {w+1}/{args.warmup}] {wt:.1f}s   GPU: {gpu_telemetry()}")
+
     torch.cuda.reset_peak_memory_stats()
-    torch.cuda.synchronize()
-    t0 = time.perf_counter()
-    frames = pipe(
-        image,
-        num_frames=args.num_frames,
-        fps=args.fps,
-        motion_bucket_id=args.motion_bucket_id,
-        noise_aug_strength=args.noise_aug,
-        decode_chunk_size=args.decode_chunk_size,
-        generator=generator,
-    ).frames[0]
-    torch.cuda.synchronize()
-    render_dt = time.perf_counter() - t0
+    times: list[float] = []
+    frames = None
+    for r in range(args.runs):
+        dt, frames = render_once()
+        times.append(dt)
+        print(f"    [run {r+1}/{args.runs}] {dt:.1f}s   GPU: {gpu_telemetry()}")
+
+    render_dt = min(times)              # best clock = least throttled = our planning number
     peak = torch.cuda.max_memory_allocated() / (1024**3)
 
     out_mp4 = os.path.join(OUT_DIR, "bench_svd.mp4")
@@ -122,7 +156,8 @@ def main() -> None:
         return (args.budget_hours * 3600.0) / gpu_seconds_per_video
 
     print("\n=== SVD-XT benchmark result ===")
-    print(f"render time / clip : {render_dt:.1f}s   ({args.num_frames} frames @ {args.fps}fps = {clip_seconds:.2f}s clip)")
+    print(f"render time / clip : {render_dt:.1f}s (best of {args.runs}; range {min(times):.1f}-{max(times):.1f}s)")
+    print(f"                     ({args.num_frames} frames @ {args.fps}fps = {clip_seconds:.2f}s of video)")
     print(f"peak VRAM          : {peak:.2f} GiB")
     print(f"model load time    : {load_dt:.1f}s (one-time per process)")
     print(f"saved              : {out_mp4}")
