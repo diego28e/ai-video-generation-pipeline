@@ -152,7 +152,7 @@ audio exactly. The engine never generates or re-times audio — it only consumes
 ### FR-5 Stage C — assemble, mux audio, exact-length
 - Encode each scene clip to `.mp4` (H.264, web-friendly).
 - Concatenate scene clips in `scene_sequence` order to form the silent visual track.
-- **Fetch the supplied `audio_url` and mux it** into the final MP4.
+- **Fetch the supplied `audio.url` and mux it** into the final MP4.
 - **Force total duration to equal the audio length exactly** (trim/pad the final frame as needed);
   log any per-scene drift between target window and rendered length.
 

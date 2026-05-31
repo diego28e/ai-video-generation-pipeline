@@ -1,7 +1,7 @@
 # API Contract — Engine ⇄ Orchestrator (Nest.js)
 
-**Status:** Draft v1 (Phase 0). This is the interface boundary. The Nest.js LMS implements the
-client side; this engine implements the server side. Versioned via the `X-Contract-Version` header.
+**Status:** Draft **v1.1** (Phase 2). This is the interface boundary. The Nest.js LMS implements the
+client side; this engine implements the server side. Versioned via `schema_version` in the body.
 
 The original FRD's scene JSON has been **extended for identity consistency** and **generalized
 away from SVD-specific fields**. Differences are noted inline.
@@ -23,57 +23,115 @@ Returns **202 Accepted** immediately.
 
 ### Request body
 
+This is the canonical **v1.1** payload (LMS team's structure + required fixes), using the real
+`the-weight` asset paths.
+
 ```jsonc
 {
-  "job_id": "lms-story-8471",            // idempotency key; engine dedupes on this
-  "story_id": "8471",
-  "output_spec": {
-    "resolution": "1024x576",            // engine may clamp to the model's native size
-    "container": "mp4"
+  "schema_version": "1.1",
+  "job_id": "f7c1e0a2-...-90",                 // idempotency key; reuse the SAME id on retry
+
+  "story": {
+    "story_id": "...",
+    "slug": "the-weight",                      // used in asset/output paths
+    "title": "The Weight",
+    "language": "en",
+    "cefr_level": "B1"                          // metadata; ignored by the engine
   },
 
-  // NEW: the existing ElevenLabs narration. Audio is the master clock; engine muxes it in
-  // and forces final video length == audio length. Engine does NOT generate audio.
+  // Audio is the MASTER CLOCK. Engine muxes it in and forces final video length == duration_seconds.
+  // Engine does NOT generate or re-time audio. Lives directly in the story directory.
   "audio": {
-    "audio_url": "https://<cloudfront-domain>/stories/8471/narration.mp3",
-    "duration_seconds": 299.0            // authoritative total length (from ElevenLabs)
+    "url": "https://d35ivcpjrjjgk.cloudfront.net/lesson-content/Stories-podcast/the-weight/The_weight.mp3",
+    "duration_seconds": 299.42                  // authoritative total length (from ElevenLabs)
   },
 
-  "global_style": "cinematic 35mm film, moody teal-orange grade, shallow depth of field, volumetric light",
+  // Delivery target.  s3_key = key_prefix + "/" + filename
+  //                   video_url = {CLOUDFRONT_BASE_URL} + "/" + s3_key
+  "output": {
+    "bucket": "ocw-lesson-content",
+    "key_prefix": "lesson-content/Stories-podcast/the-weight/video",
+    "aspect_ratio": "16:9",
+    "container": "mp4",
+    "video_codec": "h264"
+  },
 
-  // NEW: character bible — the basis for identity consistency
+  "global_style": "Painterly storybook illustration, warm muted palette, 1950s small-town.",
+
+  // Character bible — the basis for identity consistency. The engine conditions keyframes on the
+  // primary reference image via IP-Adapter. It uses the final character png (NOT the seed pics).
   "characters": [
     {
-      "character_id": "alice",
-      "appearance_prompt": "young woman, short auburn hair, green wool coat, freckles",
-      "reference_image_url": "https://.../alice_ref.png"  // optional but strongly recommended
+      "id": "the-boy",
+      "name": "The Boy",
+      "subject_type": "person",                 // person|object|animal — picks the identity technique
+      "description": "An ~8-year-old boy carrying heavy bags home at night.",
+      "appearance_prompt": "An 8-year-old boy, slight build, short dark hair, oversized grey coat...",
+      "reference_images": [
+        { "url": "https://d35ivcpjrjjgk.cloudfront.net/lesson-content/Stories-podcast/the-weight/characters/the-boy.png", "is_primary": true }
+      ]
     }
   ],
 
   "scenes": [
     {
-      "scene_sequence": 1,
-      "characters_present": ["alice"],            // which characters must stay consistent here
-      "image_generation_prompt": "wide shot, a dark rainy cyberpunk street corner, neon reflections",
-      "negative_prompt": "blurry, deformed hands, text, watermark",
-      "camera_motion": "slow push in",            // REPLACES free-text video_motion_prompt
-      "motion_strength": 0.5,                      // REPLACES motion_bucket_id; 0..1, mapped per-model
-      "start_seconds": 0.0,                        // window start on the audio master clock
-      "end_seconds": 11.5,                         // window end; engine fills this exact duration
-      "seed": null                                 // optional; engine generates+records if null
+      "sequence": 1,
+      "start_seconds": 0.0,                      // window on the audio master clock
+      "end_seconds": 12.4,                       // engine fills this EXACT duration
+      "narration_excerpt": "I finished work late that night...",  // optional; for logs/context
+      "keyframe_prompt": "Wide establishing shot of an empty city street past midnight...",
+      "negative_prompt": "blurry, deformed, text, watermark",     // optional
+      "characters_present": [],                  // IDs MUST exist in characters[]; use [] when no character is shown
+      "camera_motion": "push_in",                // applied at the Ken Burns fill stage — see "camera_motion" below
+      "motion_strength": 0.25,                   // 0..1 -> SVD motion_bucket_id (~round(1 + s*254))
+      "seed": null                               // optional; engine generates + records if null
     }
   ],
 
   "callback": {
-    "webhook_url": "https://lms.example.com/genai/callbacks",
-    "secret_ref": "managed-by-engine-env"          // shared secret identifier, not the secret itself
-  },
-  "delivery": {
-    "s3_bucket": "ocw-lesson-content",   // CloudFront already fronts this bucket
-    "s3_prefix": "stories/8471/"
+    "url": "https://lms-api.onecultureworld.com/webhooks/story-video",
+    "events": ["scene_completed", "job_completed", "job_failed", "idle"]
   }
 }
 ```
+
+Auth is via headers (see **Auth** above), not in the body.
+
+### Asset layout (authoritative)
+
+Everything for a story lives under `lesson-content/Stories-podcast/{slug}/` (CloudFront base
+`https://d35ivcpjrjjgk.cloudfront.net`):
+
+```
+lesson-content/Stories-podcast/the-weight/
+├── The_weight.mp3                                  # narration — the audio master clock
+├── characters/
+│   ├── the-boy.png                                 # character reference (engine USES this)
+│   └── seeds/
+│       └── narrator-seed-1780207690375.png         # original seed pics (engine does NOT use)
+└── video/
+    └── final.mp4                                   # engine output (key_prefix + filename)
+```
+
+So `audio.url`, `characters[].reference_images[].url`, and the output `video_url` are all just
+`{CLOUDFRONT_BASE_URL}/{key}` for the appropriate key under that story directory.
+
+### `camera_motion` — keep it (we use it, just not via SVD)
+
+**Decision: keep the field.** SVD-XT itself cannot do directed camera moves (it only has a global
+`motion_strength`). The engine instead applies `camera_motion` at the **duration-fill / Ken Burns
+stage**: after the short SVD clip, we pan/zoom across the keyframe to fill the scene's exact
+`start..end` window, in the requested direction. Supported values:
+
+| value | effect during fill |
+|-------|--------------------|
+| `static` | hold (subtle drift only) |
+| `pan_left` / `pan_right` | horizontal pan across the frame |
+| `tilt_up` / `tilt_down` | vertical pan |
+| `push_in` / `pull_out` | slow zoom in / out |
+
+`motion_strength` is separate: it drives the **SVD animation** amount (0..1 → `motion_bucket_id`).
+Unknown `camera_motion` values fall back to `static`.
 
 > **Timing invariant:** scene windows must be **contiguous and gapless**, with
 > `scenes[0].start_seconds == 0`, each `start_seconds == previous end_seconds`, and the final
@@ -92,12 +150,12 @@ Returns **202 Accepted** immediately.
 ```jsonc
 {
   "state": "idle",                  // "idle" | "busy"
-  "current_job": null,              // or { "job_id": "...", "scene": 12, "scenes_total": 96 }
+  "current_job": null,              // or { "job_id": "...", "sequence": 12, "scenes_total": 35 }
   "queue_depth": 0,
   "gpu": { "name": "NVIDIA L4", "vram_total_mb": 24564, "vram_used_mb": 812 },
   "cumulative_gpu_seconds": 18243,  // toward the ~30h (108000s) budget
   "uptime_seconds": 4012,
-  "contract_version": "1"
+  "schema_version": "1.1"
 }
 ```
 
@@ -109,8 +167,8 @@ Returns **202 Accepted** immediately.
 {
   "job_id": "lms-story-8471",
   "status": "rendering",            // queued | rendering | uploading | done | failed
-  "scenes_done": 40,
-  "scenes_total": 96,
+  "scenes_done": 20,
+  "scenes_total": 35,
   "eta_seconds": 5400,
   "gpu_seconds_used": 7200,
   "error": null
@@ -121,36 +179,37 @@ Returns **202 Accepted** immediately.
 
 ## Webhooks (engine → Nest.js)
 
-All POSTed to `callback.webhook_url`, HMAC-signed (`X-Signature`).
+All POSTed to `callback.url` (`https://lms-api.onecultureworld.com/webhooks/story-video`),
+HMAC-signed (`X-Signature`). The `type` matches the tokens in `callback.events`.
 
-### Per-scene (optional, for progress UX)
+### `scene_completed` (optional, for progress UX)
 ```jsonc
-{ "type": "scene.completed", "job_id": "...", "scene_sequence": 12, "scenes_total": 96 }
+{ "type": "scene_completed", "job_id": "f7c1e0a2-...-90", "sequence": 12, "scenes_total": 35 }
 ```
 
-### Job completed
+### `job_completed`
 ```jsonc
 {
-  "type": "job.completed",
-  "job_id": "lms-story-8471",
+  "type": "job_completed",
+  "job_id": "f7c1e0a2-...-90",
   "status": "done",
-  "video_url": "https://<cloudfront-domain>/stories/8471/final.mp4",   // CloudFront, not s3://
-  "s3_key": "stories/8471/final.mp4",
+  "video_url": "https://d35ivcpjrjjgk.cloudfront.net/lesson-content/Stories-podcast/the-weight/video/final.mp4",
+  "s3_key": "lesson-content/Stories-podcast/the-weight/video/final.mp4",
   "bucket": "ocw-lesson-content",
-  "duration_seconds": 299.0,                          // == audio length
+  "duration_seconds": 299.42,                         // == audio length
   "gpu_seconds_used": 12880,
   "seeds": { "1": 12345, "2": 67890 }                // for reproducibility
 }
 ```
 
-### Job failed
+### `job_failed`
 ```jsonc
-{ "type": "job.failed", "job_id": "...", "status": "failed", "error": "OOM at scene 81", "scenes_done": 80 }
+{ "type": "job_failed", "job_id": "...", "status": "failed", "error": "OOM at scene 31", "scenes_done": 30 }
 ```
 
-### Idle (queue drained) — enables "email me to shut down"
+### `idle` (queue drained) — enables "email me to shut down"
 ```jsonc
-{ "type": "engine.idle", "queue_depth": 0, "cumulative_gpu_seconds": 18243, "idle_since": "2026-05-30T16:40:00Z" }
+{ "type": "idle", "queue_depth": 0, "cumulative_gpu_seconds": 18243, "idle_since": "2026-05-30T16:40:00Z" }
 ```
 > Nest.js reacts to this by emailing Diego to power off the VM (or by triggering an automated stop).
 
@@ -160,11 +219,13 @@ All POSTed to `callback.webhook_url`, HMAC-signed (`X-Signature`).
 
 1. **Pacing:** poll `GET /status`; only send the next job when appropriate (the engine serializes anyway, but pacing keeps the queue shallow and recovery cheap).
 2. **Busy awareness:** treat `state == "busy"` or a non-empty `current_job` as "engine occupied."
-3. **Idle handling:** on `engine.idle`, send Diego the shutdown email / trigger stop.
+3. **Idle handling:** on the `idle` event, send Diego the shutdown email / trigger stop.
 4. **Idempotency:** reuse the same `job_id` on retries so the engine dedupes.
-5. **Reference images:** host character reference images somewhere the engine can fetch (S3 with a readable URL is fine), or we define an upload endpoint — **open decision**.
+5. **Reference images:** resolved — characters are hosted under
+   `.../the-weight/characters/<id>.png` (the engine fetches by URL; the `characters/seeds/` pics
+   are not used by the engine).
 6. **Audio + timing:** you own the ElevenLabs word-timestamp → scene alignment. Send a fetchable
-   `audio.audio_url`, the authoritative `audio.duration_seconds`, and per-scene
+   `audio.url`, the authoritative `audio.duration_seconds`, and per-scene
    `start_seconds`/`end_seconds` that satisfy the timing invariant above. The engine consumes
    audio and timings; it does not generate or re-align them.
 
@@ -189,8 +250,9 @@ with the following required adjustments before we finalize v1.1. Adopt their nes
 3. **Auth is missing.** Not in the body — via headers: inbound `Authorization: Bearer <token>` +
    `X-Signature: sha256=<hmac of raw body>`; outbound webhooks signed the same way. Required since
    both endpoints are on the public internet.
-4. **Malformed `callback.url`** in the sample (markdown link + two domains:
-   `onecultureworld.com` vs `idiomasocw.com`). Send one clean absolute URL.
+4. **`callback.url` — resolved.** Confirmed value:
+   `https://lms-api.onecultureworld.com/webhooks/story-video` (the earlier sample had a pasted
+   markdown link spanning two domains). One clean absolute URL.
 
 ## Confirm
 5. **Timing invariant:** scenes must be contiguous & gapless, `scenes[0].start==0`, each
