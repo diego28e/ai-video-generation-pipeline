@@ -53,8 +53,9 @@ def main() -> None:
         variant="fp16",
         use_safetensors=True,
     )
-    # VRAM-safe on the 24GB L4 (NFR-3). cpu offload trades a little speed for headroom.
-    pipe.enable_model_cpu_offload()
+    # Benchmark finding: for SDXL, full-GPU placement is ~6x faster than cpu offload
+    # (7.5s vs ~48s/keyframe) and fits easily in 22 GiB. Offload only helps huge models.
+    pipe.to("cuda")
     print(f"    loaded in {time.perf_counter() - t_load:.1f}s")
 
     prompt = (

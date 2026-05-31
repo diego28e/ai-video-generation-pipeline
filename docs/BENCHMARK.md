@@ -17,20 +17,20 @@ The pipeline has two GPU stages, benchmarked independently:
 ## Recorded results
 
 ### Keyframe stage
-| Model | Steps | Size | Render time | Peak VRAM | Notes |
-|-------|-------|------|-------------|-----------|-------|
-| SDXL base 1.0 | 30 | 1024×576 | **15.6 s / 48.2 s** | **5.11 GiB** | two cold runs varied 3.6× |
+| Model | Steps | Size | Placement | Render time | Peak VRAM |
+|-------|-------|------|-----------|-------------|-----------|
+| SDXL base 1.0 | 30 | 1024×576 | cpu offload | ~48 s | 5.1 GiB |
+| SDXL base 1.0 (+IP-Adapter) | 30 | 1024×576 | **full GPU (`to('cuda')`)** | **7.5 s** | 12.9 GiB |
 
-> **L4 power note:** the keyframe denoise loop measured 3.25 it/s once and 1.11 s/it another time
-> — same code/model. The L4 is a **72 W** card; sustained clocks vary widely. **Lesson:** trust
-> warmed-up, multi-run **minimums**, not single cold runs. `bench_svd.py` now does warmup + N runs
-> and prints `nvidia-smi` power/clock each run so we can see throttling. Use `min` for planning.
+> **Key finding:** for SDXL, **full-GPU placement is ~6× faster** than `enable_model_cpu_offload()`
+> (7.5 s vs ~48 s). Offload overhead dominates small models. → keyframe stage runs **without offload**.
+> For SVD-XT (heavy), offload vs no-offload was only ~3% (177.7 s → 172.4 s), so it's a non-issue there.
 
 ### Video stage
 | Model | Frames | fps | Clip len | Render time | Peak VRAM | Status |
 |-------|--------|-----|----------|-------------|-----------|--------|
 | SVD-XT (`stable-video-diffusion-img2vid-xt`), offload | 25 | 7 | ~3.57 s | **177.7 s** (best of 3, ±0.2 s) | **10.83 GiB** | ✅ **LOCKED** |
-| SVD-XT, `--no-offload` | 25 | 7 | ~3.57 s | _pending A/B_ | _pending_ | expected faster (util was 45–56%) |
+| SVD-XT, `--no-offload` | 25 | 7 | ~3.57 s | 172.4 s | 13.32 GiB | ~3% faster — offload not the bottleneck |
 | LTX-Video (alternative) | — | — | — | _not run_ | — | not needed — budget already won on speed |
 
 **Budget verdict (PASSED):** strategy B = **1.88 GPU-h/video** → 3 videos ≈ **5.6 GPU-h** vs the
@@ -47,11 +47,14 @@ optimization, not a budget requirement.
 Approach: full-appearance reference image → **IP-Adapter (SDXL)** at the keyframe stage; SVD-XT then
 animates the identity-locked keyframe. No new dependencies.
 
-| Reference type | Adapter | Scale | Same character across 3 scenes? | Notes |
-|---|---|---|---|---|
-| full-body image | IP-Adapter base (sdxl) | 0.7 | _pending eyeball_ | run `scripts/bench_identity.py --reference <url>` |
+| Reference type | Adapter | Scale | Style used | Same character across 3 scenes? | Notes |
+|---|---|---|---|---|---|
+| `the-boy.png` (real LMS asset) | IP-Adapter base (sdxl) | 0.7 | cinematic (test default) | **_pending visual review_** | ran clean, 7.5 s/keyframe, 12.9 GiB |
 
-Tuning: raise `--scale` (→0.85) or `--adapter plus` if identity drifts; lower it (→0.5) if scenes are ignored.
+⚠️ The test used the script's default **cinematic** style, but the real art direction is
+**"Painterly storybook illustration, warm muted palette, 1950s small-town."** Re-run with the real
+style for a true read: `--style "Painterly storybook illustration, warm muted palette, 1950s small-town"`.
+Tuning: raise `--scale` (→0.85) / `--adapter plus` if identity drifts; lower (→0.5) if scenes are ignored.
 
 ## How to run (on the VM, inside the venv)
 

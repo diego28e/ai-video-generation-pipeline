@@ -167,3 +167,41 @@ All POSTed to `callback.webhook_url`, HMAC-signed (`X-Signature`).
    `audio.audio_url`, the authoritative `audio.duration_seconds`, and per-scene
    `start_seconds`/`end_seconds` that satisfy the timing invariant above. The engine consumes
    audio and timings; it does not generate or re-align them.
+
+---
+
+# Reconciliation with the LMS team's proposal (v1.1)
+
+The LMS team proposed a payload that matches this contract's backbone. **Accepted as the base**,
+with the following required adjustments before we finalize v1.1. Adopt their nested structure
+(`story` / `audio` / `output` / `characters` / `scenes` / `callback{url,events}`,
+`schema_version`, `narration_excerpt`, `subject_type`, `reference_images[]{url,is_primary}`).
+
+## Must-fix
+1. **`camera_motion` cannot be done by SVD-XT.** SVD-XT only takes a general `motion_strength`
+   (→ `motion_bucket_id`); it cannot do directed moves like `pan_left`. We honor `camera_motion`
+   at the **duration-fill (Ken Burns) stage** — we pan/zoom the keyframe to fill the scene window.
+   Keep the field, but understand it drives the fill, not the video model. Suggested enum:
+   `pan_left|pan_right|push_in|pull_out|static|tilt_up|tilt_down`.
+2. **`characters_present` must only contain IDs defined in `characters[]`.** The sample lists
+   `"the-narrator"`, who isn't defined and (being first-person/unseen) usually has no reference.
+   Rule: the engine **rejects (400)** unknown IDs. For unseen narrator scenes, send `[]`.
+3. **Auth is missing.** Not in the body — via headers: inbound `Authorization: Bearer <token>` +
+   `X-Signature: sha256=<hmac of raw body>`; outbound webhooks signed the same way. Required since
+   both endpoints are on the public internet.
+4. **Malformed `callback.url`** in the sample (markdown link + two domains:
+   `onecultureworld.com` vs `idiomasocw.com`). Send one clean absolute URL.
+
+## Confirm
+5. **Timing invariant:** scenes must be contiguous & gapless, `scenes[0].start==0`, each
+   `start == prev end`, last `end == audio.duration_seconds` (299.42). Engine rejects gaps/overlaps.
+6. **Key/URL mapping (now confirmed):** `s3_key = output.key_prefix + "/" + filename`;
+   `video_url = {CLOUDFRONT_BASE_URL}/{s3_key}`. e.g. final →
+   `https://d35ivcpjrjjgk.cloudfront.net/lesson-content/Stories-podcast/the-weight/video/final.mp4`.
+7. **`motion_strength` mapping:** 0..1 float → `motion_bucket_id` (≈ `round(1 + strength*254)`),
+   default 0.5 ≈ 127.
+
+## Nice (optional)
+- `narration_excerpt` — keep; useful for logs and (later) prompt enrichment. Engine doesn't require it.
+- `subject_type` (person/object/animal) — keep; lets us pick the identity technique per character.
+- `cefr_level` / `language` — harmless metadata; ignored by the engine.

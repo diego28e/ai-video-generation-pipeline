@@ -79,9 +79,12 @@ engine does **not** generate audio; it generates moving images and muxes the sup
   `https://d35ivcpjrjjgk.cloudfront.net/lesson-content/Stories-podcast/{story_slug}/`.
   The engine fetches them by URL (no upload endpoint needed).
 
+**Resolved (cont.):**
+- **S3-key ↔ CloudFront-path mapping** — confirmed by the LMS `output.key_prefix`:
+  `s3_key = key_prefix + "/" + filename`, `video_url = {CLOUDFRONT_BASE_URL}/{s3_key}` (path == key,
+  no origin rewrite). e.g. `.../lesson-content/Stories-podcast/the-weight/video/final.mp4`.
+
 **Open decisions (need your input before the relevant phase):**
-- **S3-key ↔ CloudFront-path mapping** — bucket is `ocw-lesson-content`, CDN path starts
-  `/lesson-content`. Confirm before Phase 6 so output keys/URLs resolve correctly.
 - **Deployment method** (GitHub Actions self-hosted runner vs. scripted `git pull` + systemd) — Phase 7.
 
 ---
