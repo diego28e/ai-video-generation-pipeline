@@ -43,6 +43,16 @@ optimization, not a budget requirement.
 
 ---
 
+### Identity (step 2c) — the actual #1 goal
+Approach: full-appearance reference image → **IP-Adapter (SDXL)** at the keyframe stage; SVD-XT then
+animates the identity-locked keyframe. No new dependencies.
+
+| Reference type | Adapter | Scale | Same character across 3 scenes? | Notes |
+|---|---|---|---|---|
+| full-body image | IP-Adapter base (sdxl) | 0.7 | _pending eyeball_ | run `scripts/bench_identity.py --reference <url>` |
+
+Tuning: raise `--scale` (→0.85) or `--adapter plus` if identity drifts; lower it (→0.5) if scenes are ignored.
+
 ## How to run (on the VM, inside the venv)
 
 ```bash
@@ -53,7 +63,13 @@ hf auth login                    # (huggingface-cli is deprecated); or: export H
 .venv/bin/python scripts/bench_svd.py | tee outputs/bench_svd.txt
 ```
 
-The script prints render time, peak VRAM, and a budget extrapolation under two strategies:
+```bash
+# Identity spot-check (step 2c) — point it at your real character reference:
+.venv/bin/python scripts/bench_identity.py --reference <url-or-path-to-character.png>
+# then open outputs/identity/scene_01..03.png and judge consistency.
+```
+
+The SVD script prints render time, peak VRAM, and a budget extrapolation under two strategies:
 - **A) back-to-back clips:** cover the full 299 s story with ~84 SVD clips (no fill).
 - **B) audio-driven fill:** one keyframe + one clip per narration beat (~35), remaining beat
   duration filled cheaply (Ken Burns / interpolation, ~0 GPU). This is our intended approach.
