@@ -61,6 +61,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--runs", type=int, default=3, help="timed runs; reports the MIN (best clock)")
     p.add_argument("--warmup", type=int, default=1, help="untimed warmup renders to settle clocks")
+    p.add_argument(
+        "--no-offload", action="store_true",
+        help="place the whole pipeline on GPU (pipe.to('cuda')) instead of model_cpu_offload. "
+             "Faster when VRAM allows (the L4's 22GiB does); test this vs the offload baseline.",
+    )
     # Budget model inputs:
     p.add_argument("--story-seconds", type=float, default=299.0, help="target video length")
     p.add_argument("--scenes", type=int, default=35, help="assumed narration beats for fill strategy")
@@ -91,7 +96,7 @@ def main() -> None:
     print(f"==> Loading {MODEL_ID} (fp16). First run downloads several GB.")
     print("    NOTE: this model is GATED on Hugging Face. If the load fails with a 401/403,")
     print("    accept the license on its model page and authenticate:")
-    print("      huggingface-cli login        (or)   export HF_TOKEN=<your token>")
+    print("      hf auth login                (or)   export HF_TOKEN=<your token>")
     t_load = time.perf_counter()
     try:
         pipe = StableVideoDiffusionPipeline.from_pretrained(
@@ -99,7 +104,12 @@ def main() -> None:
         )
     except Exception as exc:  # noqa: BLE001
         fail(f"could not load SVD-XT (gated/auth?): {exc!r}")
-    pipe.enable_model_cpu_offload()  # VRAM safety on the 24GB L4 (NFR-3)
+    if args.no_offload:
+        pipe.to("cuda")  # whole pipeline on GPU — fastest when VRAM allows (22GiB does)
+        print("    placement: full pipeline on cuda (no offload)")
+    else:
+        pipe.enable_model_cpu_offload()  # VRAM-safe, but starves the GPU (~50% util observed)
+        print("    placement: model_cpu_offload")
     load_dt = time.perf_counter() - t_load
     print(f"    loaded in {load_dt:.1f}s")
 

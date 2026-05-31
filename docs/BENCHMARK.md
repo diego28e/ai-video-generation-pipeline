@@ -29,8 +29,17 @@ The pipeline has two GPU stages, benchmarked independently:
 ### Video stage
 | Model | Frames | fps | Clip len | Render time | Peak VRAM | Status |
 |-------|--------|-----|----------|-------------|-----------|--------|
-| SVD-XT (`stable-video-diffusion-img2vid-xt`) | 25 | 7 | ~3.57 s | _pending_ | _pending_ | run `scripts/bench_svd.py` |
-| LTX-Video (alternative) | — | — | — | _not yet_ | _not yet_ | only if SVD fails the budget |
+| SVD-XT (`stable-video-diffusion-img2vid-xt`), offload | 25 | 7 | ~3.57 s | **177.7 s** (best of 3, ±0.2 s) | **10.83 GiB** | ✅ **LOCKED** |
+| SVD-XT, `--no-offload` | 25 | 7 | ~3.57 s | _pending A/B_ | _pending_ | expected faster (util was 45–56%) |
+| LTX-Video (alternative) | — | — | — | _not run_ | — | not needed — budget already won on speed |
+
+**Budget verdict (PASSED):** strategy B = **1.88 GPU-h/video** → 3 videos ≈ **5.6 GPU-h** vs the
+~30 h budget (~5× headroom). Decision: **lock SVD-XT for the video stage.**
+
+**GPU was starved, not throttled:** during render, `sm_MHz` sat at max (2040) and power at ~48/72 W
+with **util ~45–56%** — classic CPU-offload bottleneck. `--no-offload` puts the full pipeline on the
+22 GiB card (peak was only 10.83 GiB with offload) to reclaim the idle ~50%. This is an iteration-speed
+optimization, not a budget requirement.
 
 ---
 
@@ -39,7 +48,7 @@ The pipeline has two GPU stages, benchmarked independently:
 ```bash
 mkdir -p outputs                 # safety; .gitkeep also ships the dir
 # Video-stage baseline (SVD-XT). SVD-XT is GATED on HF — authenticate first:
-huggingface-cli login            # or: export HF_TOKEN=<token>
+hf auth login                    # (huggingface-cli is deprecated); or: export HF_TOKEN=<token>
 # Defaults: 1 warmup + 3 timed runs, reports the MIN and prints GPU power/clock per run.
 .venv/bin/python scripts/bench_svd.py | tee outputs/bench_svd.txt
 ```

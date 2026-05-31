@@ -79,5 +79,6 @@ mkdir -p outputs   # safety: ensures the tee logfile target exists
   `.venv/bin/python ...` command it prints, or run `bash scripts/setup_env.sh` if `.venv` is missing.
 - **torch can't see the GPU in the venv:** do not work around it. Re-check `nvidia-smi`, then the
   cu121 pins in `scripts/setup_env.sh` are the only thing to adjust. Report back.
-- **HF rate-limit / gated model warnings:** set a token — `huggingface-cli login` or
-  `export HF_TOKEN=<token>`. Required for gated models (e.g. SVD-XT) in Phase 2.
+- **HF rate-limit / gated model warnings:** set a token — `hf auth login` (the older
+  `huggingface-cli login` is deprecated) or `export HF_TOKEN=<token>`. Required for gated models
+  (e.g. SVD-XT) in Phase 2.
