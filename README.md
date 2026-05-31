@@ -21,10 +21,14 @@ This repository is the **GCP video-generation engine only**. The orchestrating L
 ~5.6 GPU-h for 3 videos; identity greenlit). The FastAPI engine (`app/`) runs the full
 job → progress → webhook → idle loop against a stub generator — verified end-to-end with no GPU (see [`docs/ENGINE.md`](docs/ENGINE.md)).
 
-**Phase 4 built — identity-locked keyframes (Stage A):** `app/generators/keyframe.py` (SDXL +
-IP-Adapter) + `scripts/gen_keyframes.py`; verify on the VM per [`docs/PHASE4.md`](docs/PHASE4.md).
-**Next: Phase 5** — SVD-XT animation + Ken Burns fill + audio mux, wired into the engine's real
-generator. Phases in [`docs/ROADMAP.md`](docs/ROADMAP.md); dev loop in [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
+**Phase 4–5 built — the full render pipeline (Stages A–C):** identity-locked SDXL+IP-Adapter
+keyframes ([`keyframe.py`](app/generators/keyframe.py)) → Ken Burns fill to each scene's exact
+duration ([`kenburns.py`](app/generators/kenburns.py)) → ffmpeg concat + audio mux
+([`assemble.py`](app/generators/assemble.py)), tied together by `CinematicGenerator`
+(`ENGINE_GENERATOR=cinematic`). SVD-XT animation is an A/B toggle, not baked in (painterly-art
+artifacts). Stage C + the engine refactor verified locally; **render the real story on the VM** via
+[`docs/PHASE5.md`](docs/PHASE5.md). **Next: Phase 6** — S3 upload + CloudFront URL + idle lifecycle.
+Phases in [`docs/ROADMAP.md`](docs/ROADMAP.md); dev loop in [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
 
 ## Key documents
 

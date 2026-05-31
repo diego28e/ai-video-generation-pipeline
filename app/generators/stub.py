@@ -1,15 +1,15 @@
-"""No-GPU stub generator for Phase 3 / Gate G3.
+"""No-GPU stub generator for Phase 3 / Gate G3 (still used when ENGINE_GENERATOR=stub).
 
-Simulates render time and writes placeholder artifacts so the whole queue ->
-checkpoint -> webhook -> assemble flow can be exercised end-to-end without a GPU.
+Exercises the whole queue -> checkpoint -> webhook -> assemble flow with no GPU.
 """
 from __future__ import annotations
 
 import asyncio
 import os
-import time
 
-from ..models import JobRequest, Scene
+from ..checkpoints import ensure_job_dir, scene_done
+from ..models import JobRequest
+from .base import OnSceneCompleted
 
 
 class StubGenerator:
@@ -18,25 +18,18 @@ class StubGenerator:
     def __init__(self, scene_seconds: float = 0.2) -> None:
         self.scene_seconds = scene_seconds
 
-    async def render_scene(self, job: JobRequest, scene: Scene, work_dir: str) -> float:
-        from ..checkpoints import ensure_job_dir
-
-        t0 = time.perf_counter()
-        await asyncio.sleep(self.scene_seconds)  # stand-in for keyframe + clip + fill
+    async def render_job(self, job: JobRequest, work_dir: str, on_scene_completed: OnSceneCompleted) -> str:
         d = ensure_job_dir(work_dir, job.job_id)
-        with open(os.path.join(d, f"scene_{scene.sequence:03d}.txt"), "w", encoding="utf-8") as f:
-            f.write(
-                f"[stub] scene {scene.sequence} "
-                f"({scene.start_seconds:.2f}-{scene.end_seconds:.2f}s, motion={scene.camera_motion})\n"
-                f"prompt: {scene.keyframe_prompt[:120]}\n"
-                f"characters: {', '.join(scene.characters_present) or '(none)'}\n"
-            )
-        return time.perf_counter() - t0
+        for s in job.ordered_scenes():
+            if not scene_done(work_dir, job.job_id, s.sequence):
+                await asyncio.sleep(self.scene_seconds)  # stand-in for keyframe + fill
+                with open(os.path.join(d, f"scene_{s.sequence:03d}.txt"), "w", encoding="utf-8") as f:
+                    f.write(
+                        f"[stub] scene {s.sequence} ({s.start_seconds:.2f}-{s.end_seconds:.2f}s, "
+                        f"motion={s.camera_motion})\nprompt: {s.keyframe_prompt[:120]}\n"
+                    )
+            await on_scene_completed(s.sequence, self.scene_seconds)
 
-    async def assemble(self, job: JobRequest, work_dir: str) -> str:
-        from ..checkpoints import ensure_job_dir
-
-        d = ensure_job_dir(work_dir, job.job_id)
         out = os.path.join(d, "final.mp4")
         with open(out, "w", encoding="utf-8") as f:
             f.write(f"[stub] assembled {len(job.scenes)} scenes; audio={job.audio.url}")

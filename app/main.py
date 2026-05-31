@@ -11,8 +11,7 @@ from pydantic import ValidationError
 
 from . import __version__
 from .auth import authenticate
-from .config import get_settings
-from .generators.stub import StubGenerator
+from .config import Settings, get_settings
 from .jobs import JobManager
 from .models import JobRequest
 
@@ -25,11 +24,21 @@ log = logging.getLogger("engine")
 manager: JobManager | None = None
 
 
+def build_generator(settings: Settings):
+    if settings.engine_generator == "cinematic":
+        from .generators.cinematic import CinematicGenerator  # lazy: imports torch only when used
+
+        return CinematicGenerator(settings)
+    from .generators.stub import StubGenerator
+
+    return StubGenerator(scene_seconds=settings.stub_scene_seconds)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global manager
     settings = get_settings()
-    generator = StubGenerator(scene_seconds=settings.stub_scene_seconds)
+    generator = build_generator(settings)
     manager = JobManager(generator)
     manager.start()
     log.info("engine %s started (generator=%s, schema=%s)", __version__, generator.name, settings.schema_version)

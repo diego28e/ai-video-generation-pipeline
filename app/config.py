@@ -36,8 +36,17 @@ class Settings(BaseSettings):
     # Per-job checkpoint working dir (NOT a queue; the LMS owns the queue)
     work_dir: str = "./work"
 
-    # Stub generator timing (Phase 3 only; real generators arrive in Phase 4/5)
+    # Generator selection: "stub" (no GPU) or "cinematic" (SDXL+IP-Adapter -> Ken Burns -> mux)
+    engine_generator: str = "stub"
+
+    # Stub generator timing (when ENGINE_GENERATOR=stub)
     stub_scene_seconds: float = 0.2
+
+    # Cinematic generator (when ENGINE_GENERATOR=cinematic)
+    kenburns_fps: int = 24
+    sdxl_steps: int = 30
+    ip_adapter: str = "base"          # "base" | "plus"
+    ip_adapter_scale: float = 0.7
 
 
 @lru_cache

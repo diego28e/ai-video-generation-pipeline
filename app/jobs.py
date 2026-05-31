@@ -161,25 +161,22 @@ class JobManager:
         cp.save_state(self.settings.work_dir, job_id, rec)
         log.info("rendering job %s", job_id)
 
+        async def on_scene_completed(sequence: int, gpu_seconds: float) -> None:
+            self._cumulative_gpu_s += gpu_seconds
+            rec["gpu_seconds_used"] += gpu_seconds
+            rec["scenes_done"] = max(rec["scenes_done"], sequence)
+            cp.mark_scene_done(self.settings.work_dir, job_id, sequence)
+            cp.save_state(self.settings.work_dir, job_id, rec)
+            await emit(req, "scene_completed", {
+                "job_id": job_id, "sequence": sequence, "scenes_total": rec["scenes_total"],
+            })
+
         try:
-            for scene in req.ordered_scenes():
-                if cp.scene_done(self.settings.work_dir, job_id, scene.sequence):
-                    log.info("job %s scene %d already done (resume)", job_id, scene.sequence)
-                    rec["scenes_done"] = max(rec["scenes_done"], scene.sequence)
-                    continue
-                gpu_s = await self.gen.render_scene(req, scene, self.settings.work_dir)
-                self._cumulative_gpu_s += gpu_s
-                rec["gpu_seconds_used"] += gpu_s
-                rec["scenes_done"] += 1
-                cp.mark_scene_done(self.settings.work_dir, job_id, scene.sequence)
-                cp.save_state(self.settings.work_dir, job_id, rec)
-                await emit(req, "scene_completed", {
-                    "job_id": job_id, "sequence": scene.sequence, "scenes_total": rec["scenes_total"],
-                })
+            await self.gen.render_job(req, self.settings.work_dir, on_scene_completed)
 
             rec["status"] = "uploading"
             cp.save_state(self.settings.work_dir, job_id, rec)
-            await self.gen.assemble(req, self.settings.work_dir)  # (real S3 upload arrives in Phase 6)
+            # (S3 upload of the final mp4 arrives in Phase 6)
 
             rec["video_url"] = self._video_url(req)
             rec["status"] = "done"
@@ -197,8 +194,11 @@ class JobManager:
         except Exception as exc:  # noqa: BLE001
             rec["status"] = "failed"
             rec["error"] = str(exc)
-            cp.save_state(self.settings.work_dir, job_id, rec)
             log.exception("job %s failed", job_id)
+            try:
+                cp.save_state(self.settings.work_dir, job_id, rec)
+            except Exception:  # noqa: BLE001 — never let checkpointing hide the failure webhook
+                log.exception("job %s: failed to persist failure state", job_id)
             await emit(req, "job_failed", {
                 "job_id": job_id, "status": "failed", "error": str(exc), "scenes_done": rec["scenes_done"],
             })

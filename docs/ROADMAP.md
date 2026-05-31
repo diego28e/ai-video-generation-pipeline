@@ -48,11 +48,14 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 - Implement the chosen keyframe generator + character reference conditioning + `global_style`.
 - Seed recording, VRAM-safe load/offload.
 
-## Phase 5 — Stage B+C: animation, duration-fill, assemble + audio mux  ⚙️
-- I2V animation per keyframe; fill each scene's exact `start..end` window (camera move /
-  interpolation / multi-clip); `.mp4` encode (H.264); concatenate scenes.
-- Fetch the supplied audio and **mux it** (ffmpeg); force total length == audio length.
-- Adds a system dependency: **ffmpeg** (apt) — noted in Phase 1 env setup.
+## Phase 5 — Stage B+C: duration-fill, assemble + audio mux  ⚙️  (built; verify on VM)
+- **Decision: Ken Burns default, SVD A/B toggle.** Ken Burns = exact duration, honors
+  `camera_motion`, style-safe, CPU/ffmpeg (no VRAM juggling — only SDXL on GPU).
+- `kenburns.py` (pan/zoom fill) + `assemble.py` (ffmpeg concat + audio fetch + mux + exact length)
+  + `cinematic.py` (`CinematicGenerator.render_job`); engine selects via `ENGINE_GENERATOR=cinematic`.
+- `scripts/render_job.py` renders a full job offline; SVD A/B via `bench_svd.py --keyframe`.
+- **Verified locally (no GPU):** Stage C produced an exact-duration muxed mp4; G3 still green after
+  the `render_job` refactor. **Verify on VM:** render the-weight end-to-end. See `docs/PHASE5.md`.
 
 ## Phase 6 — Delivery & lifecycle  ⚙️🚦G4
 - boto3 S3 upload (scoped IAM); real job/scene webhooks; idle callback wired.

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Optional
 
 
@@ -24,7 +25,16 @@ def save_state(work_dir: str, job_id: str, state: dict) -> None:
     final = os.path.join(d, "state.json")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2)
-    os.replace(tmp, final)  # atomic
+    # os.replace is atomic on POSIX; on Windows it can transiently fail with a
+    # PermissionError if an AV/indexer holds the file — retry briefly.
+    for attempt in range(5):
+        try:
+            os.replace(tmp, final)
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.1)
 
 
 def load_state(work_dir: str, job_id: str) -> Optional[dict]:
