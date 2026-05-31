@@ -66,8 +66,15 @@ engine does **not** generate audio; it generates moving images and muxes the sup
 - Job dispatch, retry policy, and the "queue drained → email me" action.
 - Persisting/serving final videos in the LMS.
 
+**Resolved:**
+- **Character reference images** are produced upstream by the LMS's existing character pipeline
+  and hosted under the per-story CDN directory:
+  `https://d35ivcpjrjjgk.cloudfront.net/lesson-content/Stories-podcast/{story_slug}/`.
+  The engine fetches them by URL (no upload endpoint needed).
+
 **Open decisions (need your input before the relevant phase):**
-- **Hosting of reference images** for characters (S3? engine-local?) — see API contract §Characters.
+- **S3-key ↔ CloudFront-path mapping** — bucket is `ocw-lesson-content`, CDN path starts
+  `/lesson-content`. Confirm before Phase 6 so output keys/URLs resolve correctly.
 - **Deployment method** (GitHub Actions self-hosted runner vs. scripted `git pull` + systemd) — Phase 7.
 
 ---

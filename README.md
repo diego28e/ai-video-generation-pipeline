@@ -17,7 +17,8 @@ This repository is the **GCP video-generation engine only**. The orchestrating L
 
 ## Status
 
-Phase 0 — Foundation. No runtime code yet. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Phase 1 — Reproducible environment. G1 verification scripts delivered; run them on the GCP VM
+per [`docs/SETUP.md`](docs/SETUP.md). See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phases.
 
 ## Key documents
 

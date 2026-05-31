@@ -1,0 +1,40 @@
+# =============================================================================
+# Phase 1 dependency set. Intended top-level pins; the REPRODUCIBLE artifact is
+# requirements.lock.txt, produced by `pip freeze` AFTER G1 passes on the VM.
+#
+# torch / torchvision are NOT listed here — they must come from the CUDA 12.1
+# wheel index and are installed explicitly by scripts/setup_env.sh.
+#
+# The ML stack below is the model-agnostic core needed for G1 (GPU + a single
+# keyframe gen). It MAY expand at the G2 benchmark gate once the model is locked.
+# =============================================================================
+
+# --- Diffusion / model runtime ---
+diffusers==0.31.0
+transformers==4.46.3
+accelerate==1.1.1
+safetensors==0.4.5
+huggingface_hub==0.26.2
+peft==0.13.2                 # LoRA / IP-Adapter style identity conditioning (Phase 4)
+sentencepiece==0.2.0         # some text encoders require it
+einops==0.8.0
+
+# --- Image / video I/O ---
+pillow==10.4.0
+imageio==2.36.0
+imageio-ffmpeg==0.5.1
+opencv-python-headless==4.10.0.84
+numpy==1.26.4                # pinned <2 for broad torch/cv compatibility
+
+# --- API / service layer (used from Phase 3 on; pinned now for reproducibility) ---
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.9.2
+pydantic-settings==2.6.1
+httpx==0.27.2                # outbound webhooks + fetching audio/reference assets
+python-dotenv==1.0.1
+structlog==24.4.0            # structured logs (NFR-4)
+tenacity==9.0.0              # retry policy for S3/webhook calls
+
+# --- AWS delivery ---
+boto3==1.35.71
