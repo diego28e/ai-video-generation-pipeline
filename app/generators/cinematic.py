@@ -50,6 +50,7 @@ class CinematicGenerator:
                 adapter=self.settings.ip_adapter,
                 scale=self.settings.ip_adapter_scale,
                 steps=self.settings.sdxl_steps,
+                model_id=self.settings.sdxl_model_id,
             )
         return self._keyframer
 
@@ -63,7 +64,9 @@ class CinematicGenerator:
         keyframer = self._ensure_keyframer()
         clips: list[str] = []
 
-        for scene in job.ordered_scenes():
+        # Visual windows are derived from narration anchors (gaps auto-filled).
+        for scene, v_start, v_end in job.scene_windows():
+            visual_duration = v_end - v_start
             kf_path = os.path.join(kf_dir, f"scene_{scene.sequence:03d}.png")
             clip_path = os.path.join(clip_dir, f"scene_{scene.sequence:03d}.mp4")
             gpu_seconds = 0.0
@@ -85,7 +88,7 @@ class CinematicGenerator:
             if not os.path.exists(clip_path):
                 await asyncio.to_thread(
                     render_scene_clip,
-                    kf_path, clip_path, scene.duration, self.fps, scene.camera_motion, scene.motion_strength,
+                    kf_path, clip_path, visual_duration, self.fps, scene.camera_motion, scene.motion_strength,
                 )
 
             clips.append(clip_path)

@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     sdxl_steps: int = 30
     ip_adapter: str = "base"          # "base" | "plus"
     ip_adapter_scale: float = 0.7
+    # Swap to a realism-tuned SDXL checkpoint for a CGI/photoreal look (drop-in, same pipeline),
+    # e.g. SG161222/RealVisXL_V4.0 or RunDiffusion/Juggernaut-XL-v9.
+    sdxl_model_id: str = "stabilityai/stable-diffusion-xl-base-1.0"
 
 
 @lru_cache

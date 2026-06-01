@@ -133,10 +133,13 @@ stage**: after the short SVD clip, we pan/zoom across the keyframe to fill the s
 `motion_strength` is separate: it drives the **SVD animation** amount (0..1 → `motion_bucket_id`).
 Unknown `camera_motion` values fall back to `static`.
 
-> **Timing invariant:** scene windows must be **contiguous and gapless**, with
-> `scenes[0].start_seconds == 0`, each `start_seconds == previous end_seconds`, and the final
-> `end_seconds == audio.duration_seconds`. The engine validates this and rejects (`400`) on a gap,
-> overlap, or total-length mismatch.
+> **Timing (v1.1, updated):** scenes are **narration anchors** — `start_seconds`/`end_seconds`
+> are when the phrase is spoken. **Silent gaps between phrases are allowed** (real narration has
+> pauses); the engine derives a continuous *visual* window per scene as
+> `[scene.start → next_scene.start)`, fills the lead-in from 0, and extends the last scene to
+> `audio.duration_seconds`. Rules the engine enforces (else `400`): `start_seconds` strictly
+> increasing, no **overlap** (`end ≤ next.start`), first start `≥ 0`, last start `< audio.duration`.
+> (Earlier drafts required gapless coverage — that was too strict for real narration and is relaxed.)
 
 ### Responses
 - `202 Accepted` → `{ "job_id": "lms-story-8471", "status": "queued", "queue_position": 2 }`
@@ -255,8 +258,10 @@ with the following required adjustments before we finalize v1.1. Adopt their nes
    markdown link spanning two domains). One clean absolute URL.
 
 ## Confirm
-5. **Timing invariant:** scenes must be contiguous & gapless, `scenes[0].start==0`, each
-   `start == prev end`, last `end == audio.duration_seconds` (299.42). Engine rejects gaps/overlaps.
+5. **Timing (relaxed in v1.1):** scenes are narration anchors; **gaps/pauses are OK**, overlaps are
+   not. Starts strictly increase; the engine derives continuous visual windows and fills gaps. Your
+   LLM can emit phrase-aligned scenes directly (like the 98-scene "the-weight" mapping) — no need to
+   pad to gapless. See the Timing note above.
 6. **Key/URL mapping (now confirmed):** `s3_key = output.key_prefix + "/" + filename`;
    `video_url = {CLOUDFRONT_BASE_URL}/{s3_key}`. e.g. final →
    `https://d35ivcpjrjjgk.cloudfront.net/lesson-content/Stories-podcast/the-weight/video/final.mp4`.
