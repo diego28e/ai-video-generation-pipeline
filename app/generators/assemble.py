@@ -42,7 +42,15 @@ def _fetch_audio(url: str, dest: str) -> str:
     return src
 
 
-def assemble(scene_clips: list[str], audio_url: str, out_path: str, work_dir: str) -> str:
+def assemble(
+    scene_clips: list[str],
+    audio_url: str,
+    out_path: str,
+    work_dir: str,
+    trim_seconds: float | None = None,
+) -> str:
+    """Concat clips + mux audio. If trim_seconds is set (partial/slice render), trim the
+    muxed output to that length so the full-length narration doesn't run past the video."""
     if not scene_clips:
         raise ValueError("no scene clips to assemble")
     ffmpeg = _ffmpeg()
@@ -58,14 +66,17 @@ def assemble(scene_clips: list[str], audio_url: str, out_path: str, work_dir: st
 
     # 2) mux the narration; aac audio, keep video as-is.
     audio_path = _fetch_audio(audio_url, os.path.join(work_dir, "narration_input"))
+    trim_args = ["-t", f"{trim_seconds:.3f}"] if trim_seconds and trim_seconds > 0 else []
     _run([
         ffmpeg, "-y",
         "-i", silent,
         "-i", audio_path,
         "-map", "0:v:0", "-map", "1:a:0",
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        *trim_args,
         "-movflags", "+faststart",
         out_path,
     ])
-    log.info("assembled final video -> %s", out_path)
+    log.info("assembled final video -> %s%s", out_path,
+             f" (trimmed to {trim_seconds:.1f}s)" if trim_args else "")
     return out_path

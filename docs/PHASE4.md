@@ -1,5 +1,10 @@
 # Phase 4 — Identity-locked keyframes (Stage A)
 
+> **⚠️ SUPERSEDED (2026-06-05, Direction v2).** SDXL + IP-Adapter is retired as the identity
+> mechanism in favor of video-native face-ID (Phantom / VACE / ConsisID / Wan R2V). See
+> [`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md) and Phase A–D in [`ROADMAP.md`](ROADMAP.md).
+> Kept for the audit trail.
+
 Productionizes what `bench_identity.py` proved: SDXL + IP-Adapter keyframes that keep a character
 consistent across scenes, in the job's `global_style`. This is a **GPU step — run on the VM.**
 

@@ -8,6 +8,53 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 
 ---
 
+## ⚠️ Direction v2 (2026-06-05) — real video (Wan) + Continuity Director
+
+The Phase 4–5 approach (SDXL still per scene → Ken Burns pan/zoom) is **superseded**: it produced
+"images with zoom," not video, and character identity never held. We are moving to **real
+self-hosted video generation (Wan 2.2)** with a **Continuity Director** (cuts vs. continuous takes)
+and **video-native face-ID**. See [`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md) for the
+architecture and the **prerequisites checklist** (GPU upgrade, HF access, disk, real job JSON).
+
+**What survives:** Phase 0–3 (engine skeleton, contract, job lifecycle, checkpoints, webhooks,
+audio-as-master-clock, the swappable `Generator` protocol). **What is retired:** `kenburns.py`,
+the SVD-XT A/B path, and SDXL+IP-Adapter as the identity mechanism.
+
+Re-phased plan below as **Phases A–D** (replacing the old Phases 4–6).
+
+### Phase A — GPU upgrade + Wan environment  ⚙️🚦G1′
+- Provision the new GPU VM (A100-class; see `CINEMATIC_PIPELINE.md` §6–7); off by default.
+- Pin a Wan-capable stack (bump `diffusers`; add Wan + the face-ID/reference deps). HF auth for
+  gated Wan models.
+- **Gate G1′:** fresh env renders **one Wan clip** from a reference image on the new GPU.
+
+### Phase B — Wan benchmark + identity + transition modes  🔬🚦G2′  ← *decides the stack with footage*
+- `scripts/bench_wan.py` (mirrors the old `bench_svd.py`): render 2–3 **real** `the-weight` beats.
+- Measure seconds/clip + VRAM on the new GPU → **real cost per 5-min video** (the old ~30 GPU-h
+  budget is void).
+- Judge from footage: (a) Wan I2V quality + identity (Phantom/VACE/ConsisID, or Wan 2.7 R2V),
+  (b) **last-frame chaining** (CONTINUOUS), (c) **location-anchor reuse** (CUT_SAME_SCENE),
+  (d) clean HARD_CUT.
+- **Gate G2′:** stack + identity method + per-mode recipe locked from real footage; cost confirmed.
+
+### Phase C — Rewrite the generator (Continuity Director + Wan recipes)  ⚙️
+- New `WanGenerator` behind the existing `Generator` protocol: **Continuity Director** (3-tier
+  decision), **location-anchor cache**, per-mode conditioning → Wan I2V/FLF2V → fill each scene's
+  exact `start..end` window → concat + mux (existing `assemble.py`). Keep checkpoint/resume (FR-9).
+- Implement `scene_group_id` / `shot_relation` parsing (v1.2) + the heuristic fallback.
+
+### Phase D — Full render + delivery  ⚙️🚦G4
+- Full `the-weight` render on real assets; **identity gate G4** (boy recognizable across scenes;
+  motion is real; cuts read as cuts). Then boto3 S3 upload + CloudFront URL + idle lifecycle.
+
+---
+
+## Historical phases (Direction v1 — kept for the audit trail)
+
+> Phases 4–6 below describe the retired SDXL+Ken Burns approach. Superseded by Phases A–D above.
+
+---
+
 ## Phase 0 — Foundation & repo  🧱  ← **current round**
 - Requirements, API contract, roadmap docs.
 - Repo scaffold, `.gitignore`, `.env.example`.
@@ -37,7 +84,7 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 - **Gate G3 result (verified locally, no GPU):** 202 → progress → done; idle callback delivered;
   idempotent re-submit → 200; bad token/HMAC → 401; bad timing → 400. See `docs/ENGINE.md`.
 
-## Phase 4 — Stage A: identity-locked keyframes  ⚙️  (built; verify on VM)
+## Phase 4 — Stage A: identity-locked keyframes  ⚙️  (SUPERSEDED by Phase A–C — see Direction v2)
 - `app/generators/keyframe.py` — `KeyframeGenerator` (SDXL fp16 + IP-Adapter, no offload):
   conditions each scene on the present character's primary reference; applies `global_style`;
   neutralizes identity (scale 0) for no-character scenes; records the seed.
@@ -48,7 +95,7 @@ Legend: 🧱 scaffold · ⚙️ runtime code · 🔬 measurement · 🚦 gate
 - Implement the chosen keyframe generator + character reference conditioning + `global_style`.
 - Seed recording, VRAM-safe load/offload.
 
-## Phase 5 — Stage B+C: duration-fill, assemble + audio mux  ⚙️  (built; verify on VM)
+## Phase 5 — Stage B+C: duration-fill, assemble + audio mux  ⚙️  (SUPERSEDED by Phase A–D — Ken Burns retired)
 - **Decision: Ken Burns default, SVD A/B toggle.** Ken Burns = exact duration, honors
   `camera_motion`, style-safe, CPU/ffmpeg (no VRAM juggling — only SDXL on GPU).
 - `kenburns.py` (pan/zoom fill) + `assemble.py` (ffmpeg concat + audio fetch + mux + exact length)

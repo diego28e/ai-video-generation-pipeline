@@ -1,5 +1,10 @@
 # Phase 5 — Animation, duration-fill, assemble + audio mux (Stage B+C)
 
+> **⚠️ SUPERSEDED (2026-06-05, Direction v2).** The Ken Burns / SVD approach described here is
+> retired in favor of real Wan video. See [`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md) and the
+> Phase A–D plan in [`ROADMAP.md`](ROADMAP.md). `assemble.py` (concat + audio mux) is the only part
+> carried forward. Kept for the audit trail.
+
 Turns identity-locked keyframes into the final, narration-synced `.mp4`.
 
 **Decision (your call): Ken Burns by default, SVD as an A/B toggle.** SVD-XT warps painterly art and

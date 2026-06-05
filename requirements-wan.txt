@@ -1,0 +1,28 @@
+# =============================================================================
+# Direction v2 — Wan video-model runtime (install ON THE A100 VM, AFTER the base
+# requirements.txt). These OVERRIDE the base diffusers pin (0.31.0 predates Wan).
+#
+# Reproducibility: as with the base set, these are intended top-level pins. The
+# REPRODUCIBLE artifact is requirements.lock.txt, produced by `pip freeze` AFTER
+# Gate G1' passes on the A100 (scripts/verify_wan.py). If a load fails on a
+# version mismatch, bump here, re-run G1', then re-freeze.
+#
+# torch / torchvision are NOT listed here — they come from the CUDA wheel index
+# and are installed by scripts/setup_wan_env.sh (A100 supports bf16; Wan needs it).
+# =============================================================================
+
+# --- Wan requires a much newer diffusers than the base set (Wan 2.2 I2V + FLF2V) ---
+diffusers==0.35.1            # WanImageToVideoPipeline, AutoencoderKLWan, WanVACEPipeline, FLF2V
+# NOTE: the small Wan 2.2 TI2V-5B (used for L4/24GB stopgap testing — see
+# docs/CINEMATIC_PIPELINE.md §9) may need diffusers from source instead of 0.35.1:
+#   pip install "git+https://github.com/huggingface/diffusers"
+# If verify_wan.py --model Wan-AI/Wan2.2-TI2V-5B-Diffusers fails to load, switch to that.
+transformers>=4.49.0         # UMT5EncoderModel + CLIPVisionModel used by Wan
+accelerate>=1.1.1            # device mapping + enable_model_cpu_offload
+safetensors>=0.4.5
+huggingface_hub>=0.26.2
+ftfy>=6.2.0                  # text cleanup expected by the Wan text encoder
+einops>=0.8.0
+sentencepiece>=0.2.0
+
+# imageio / imageio-ffmpeg / pillow / numpy / opencv come from the base requirements.txt.

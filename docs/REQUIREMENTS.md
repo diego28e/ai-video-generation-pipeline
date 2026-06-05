@@ -32,6 +32,26 @@ finished ~5-min videos**. This *loosens* the per-video time pressure dramaticall
 of headroom), so the binding constraint shifts from **speed** to **identity consistency &
 quality**. Phase 2 prioritizes the identity benchmark accordingly; raw clip speed is secondary.
 
+## 0c. Direction change (2026-06-05) — real video, not animated stills
+
+A test render of `the-weight` exposed that the Phase 4–5 pipeline (independent SDXL still per scene
+→ Ken Burns pan/zoom → mux) **does not generate video** and characters drift. The only real video
+model (SVD-XT) had been disabled. This is corrected by **Direction v2**:
+
+| # | v1 (retired) | v2 | Why |
+|---|---|---|---|
+| 12 | SDXL still + **Ken Burns pan/zoom** as the "video" | **Wan 2.2 real video** (I2V / FLF2V) | Ken Burns is not video; goal is cinematic motion. |
+| 13 | Identity via SDXL **IP-Adapter** on a still (never validated) | **Video-native face-ID** (Phantom / VACE / ConsisID, or Wan R2V) | IP-Adapter doesn't lock identity; consistency is the #1 goal. |
+| 14 | Clip linking = "chain the last frame" (implicit) | **Continuity Director:** 3 modes (CONTINUOUS / CUT_SAME_SCENE / HARD_CUT) over 3 consistency axes | Cinema is mostly cuts; blind chaining morphs across a cut. |
+| 15 | **L4 24 GB**; ~30 GPU-h budget | **A100-class GPU**; budget re-baselined at the new benchmark | L4 fits Wan in VRAM but is far too compute-weak; old budget was for SDXL+Ken Burns. |
+
+Full architecture, the three consistency axes, the Continuity Director, the model stack, GPU
+options, and the **prerequisites checklist** live in
+[`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md). The API contract gains two optional scene fields
+(`scene_group_id`, `shot_relation`) in v1.2 ([`API_CONTRACT.md`](API_CONTRACT.md)). The engine
+skeleton, job lifecycle, checkpoints, webhooks, and audio-as-master-clock (§3–§4 below) are
+unchanged; only the generator internals and the GPU change.
+
 ## 1. Goal & success criteria
 
 **Goal:** Produce cinematic visuals that **illustrate an existing narrated audio track**

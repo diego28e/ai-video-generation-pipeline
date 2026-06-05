@@ -1,5 +1,12 @@
 # Phase 2 — Model Evaluation & Benchmark (Gate G2)
 
+> **⚠️ SUPERSEDED (2026-06-05, Direction v2).** This page benchmarked the retired SDXL+SVD-XT /
+> Ken Burns stack; its "LOCKED" verdict and the ~30 GPU-h budget no longer apply. The new
+> benchmark is **Gate G2′** in [`ROADMAP.md`](ROADMAP.md) — `scripts/bench_wan.py` measures
+> **Wan 2.2** (I2V/FLF2V), the **face-ID** method, and the **three transition modes** on the real
+> `the-weight` assets, on the upgraded A100-class GPU. Architecture:
+> [`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md). The page below is kept for the audit trail.
+
 **Purpose:** lock the model stack with measured numbers — before we build the engine on top of it.
 Verification-first: no stack is "chosen" until its numbers are in the table below.
 

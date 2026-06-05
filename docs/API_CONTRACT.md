@@ -1,10 +1,16 @@
 # API Contract — Engine ⇄ Orchestrator (Nest.js)
 
-**Status:** Draft **v1.1** (Phase 2). This is the interface boundary. The Nest.js LMS implements the
-client side; this engine implements the server side. Versioned via `schema_version` in the body.
+**Status:** Draft **v1.2** (Direction v2). This is the interface boundary. The Nest.js LMS implements
+the client side; this engine implements the server side. Versioned via `schema_version` in the body.
 
 The original FRD's scene JSON has been **extended for identity consistency** and **generalized
 away from SVD-specific fields**. Differences are noted inline.
+
+> **v1.2 (2026-06-05):** the generation engine is moving to **real video (Wan)** with a
+> **Continuity Director** (cuts vs. continuous takes). Two **optional** scene fields are added —
+> `scene_group_id` and `shot_relation` — to let the story LLM declare shot grammar explicitly.
+> They are **backward-compatible**: if omitted, the engine infers continuity heuristically (see
+> "Continuity / shot relations" below and [`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md)).
 
 ---
 
@@ -82,8 +88,13 @@ This is the canonical **v1.1** payload (LMS team's structure + required fixes), 
       "keyframe_prompt": "Wide establishing shot of an empty city street past midnight...",
       "negative_prompt": "blurry, deformed, text, watermark",     // optional
       "characters_present": [],                  // IDs MUST exist in characters[]; use [] when no character is shown
-      "camera_motion": "push_in",                // applied at the Ken Burns fill stage — see "camera_motion" below
-      "motion_strength": 0.25,                   // 0..1 -> SVD motion_bucket_id (~round(1 + s*254))
+      "camera_motion": "push_in",                // requested camera move; drives the video model / prompt (see "camera_motion")
+      "motion_strength": 0.25,                   // 0..1 -> amount of motion (mapped per video model)
+
+      // --- Continuity / shot grammar (v1.2, OPTIONAL — see "Continuity / shot relations") ---
+      "scene_group_id": "street-night",          // scenes sharing this id are the same location/time block
+      "shot_relation": "cut",                    // "cut" | "continue"; default "cut" (omit to let the engine infer)
+
       "seed": null                               // optional; engine generates + records if null
     }
   ],
@@ -116,22 +127,53 @@ lesson-content/Stories-podcast/the-weight/
 So `audio.url`, `characters[].reference_images[].url`, and the output `video_url` are all just
 `{CLOUDFRONT_BASE_URL}/{key}` for the appropriate key under that story directory.
 
-### `camera_motion` — keep it (we use it, just not via SVD)
+### `camera_motion` — directed camera move (now model-driven)
 
-**Decision: keep the field.** SVD-XT itself cannot do directed camera moves (it only has a global
-`motion_strength`). The engine instead applies `camera_motion` at the **duration-fill / Ken Burns
-stage**: after the short SVD clip, we pan/zoom across the keyframe to fill the scene's exact
-`start..end` window, in the requested direction. Supported values:
+**Decision: keep the field.** With the move to real video (Wan), `camera_motion` is realized by the
+**video model** (via the motion prompt/conditioning), not by a post-hoc crop pan/zoom. The enum is
+unchanged so the LMS side needs no change:
 
-| value | effect during fill |
-|-------|--------------------|
-| `static` | hold (subtle drift only) |
-| `pan_left` / `pan_right` | horizontal pan across the frame |
-| `tilt_up` / `tilt_down` | vertical pan |
-| `push_in` / `pull_out` | slow zoom in / out |
+| value | requested camera move |
+|-------|-----------------------|
+| `static` | locked-off / minimal camera movement |
+| `pan_left` / `pan_right` | horizontal camera pan |
+| `tilt_up` / `tilt_down` | vertical camera tilt |
+| `push_in` / `pull_out` | dolly / zoom in / out |
 
-`motion_strength` is separate: it drives the **SVD animation** amount (0..1 → `motion_bucket_id`).
-Unknown `camera_motion` values fall back to `static`.
+`motion_strength` (0..1) is separate: overall **amount of motion**, mapped to the chosen video
+model's motion control. Unknown `camera_motion` values fall back to `static`.
+
+> **History:** in Direction v1, `camera_motion` drove a Ken Burns crop over a still keyframe (there
+> was no real video model in the path). That approach is retired — see
+> [`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md).
+
+### Continuity / shot relations (v1.2) — cuts vs. continuous takes
+
+Cinema is mostly **cuts**; continuous takes are the exception. The engine runs a **Continuity
+Director** that classifies each scene's relationship to the previous one into one of three modes
+and routes each to a different generation recipe (full detail in
+[`CINEMATIC_PIPELINE.md`](CINEMATIC_PIPELINE.md)):
+
+| Mode | Meaning | What carries over |
+|------|---------|-------------------|
+| `CONTINUOUS` | same shot continuing / match-on-action | identity + world + **motion (last frame chained)** |
+| `CUT_SAME_SCENE` | new framing, same place/time (reverse/reaction/cutaway) | identity + world (**location anchor**); no pixel carryover |
+| `HARD_CUT` | new location / time jump / new sequence | identity only (deliberately new look) |
+
+**Two optional fields let the story LLM declare this explicitly (preferred):**
+- `scene_group_id` (string) — scenes sharing it are the same physical **location/time block**.
+- `shot_relation` (`"cut" | "continue"`) — within a group, `cut` → `CUT_SAME_SCENE`; across groups,
+  `cut` → `HARD_CUT`; `continue` → `CONTINUOUS`.
+
+**If omitted**, the engine infers the mode heuristically (time gap, `characters_present` delta,
+prompt similarity) and **defaults to a cut when uncertain** — because a wrong cut is barely
+noticeable while a wrong chain across a real cut produces a visible morph. Even an explicit
+`continue` is validated (same characters, small time gap) and **downgraded to a cut** if it doesn't
+hold.
+
+> **LMS guidance:** for best results, emit `scene_group_id` per location and set
+> `shot_relation: "continue"` only for true match-on-action / same-take beats. When in doubt, leave
+> `shot_relation` unset or `"cut"`.
 
 > **Timing (v1.1, updated):** scenes are **narration anchors** — `start_seconds`/`end_seconds`
 > are when the phrase is spoken. **Silent gaps between phrases are allowed** (real narration has

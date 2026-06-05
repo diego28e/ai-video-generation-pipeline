@@ -17,18 +17,20 @@ This repository is the **GCP video-generation engine only**. The orchestrating L
 
 ## Status
 
-**Phase 3 complete — engine skeleton (G3 passed).** Stack locked at G2 (SDXL+IP-Adapter → SVD-XT;
-~5.6 GPU-h for 3 videos; identity greenlit). The FastAPI engine (`app/`) runs the full
-job → progress → webhook → idle loop against a stub generator — verified end-to-end with no GPU (see [`docs/ENGINE.md`](docs/ENGINE.md)).
+**⚠️ Direction v2 (2026-06-05) — pivoting to real video.** A test render exposed that the Phase 4–5
+pipeline produced *animated stills* (SDXL still → Ken Burns pan/zoom), not video, with poor
+character consistency. We are moving to **real self-hosted video generation (Wan 2.2)** with a
+**Continuity Director** (cuts vs. continuous takes) and **video-native face-ID**, on an upgraded
+A100-class GPU. **New source of truth:** [`docs/CINEMATIC_PIPELINE.md`](docs/CINEMATIC_PIPELINE.md)
+(architecture + the prerequisites checklist). Re-phased plan (Phases A–D) in
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**Phase 4–5 built — the full render pipeline (Stages A–C):** identity-locked SDXL+IP-Adapter
-keyframes ([`keyframe.py`](app/generators/keyframe.py)) → Ken Burns fill to each scene's exact
-duration ([`kenburns.py`](app/generators/kenburns.py)) → ffmpeg concat + audio mux
-([`assemble.py`](app/generators/assemble.py)), tied together by `CinematicGenerator`
-(`ENGINE_GENERATOR=cinematic`). SVD-XT animation is an A/B toggle, not baked in (painterly-art
-artifacts). Stage C + the engine refactor verified locally; **render the real story on the VM** via
-[`docs/PHASE5.md`](docs/PHASE5.md). **Next: Phase 6** — S3 upload + CloudFront URL + idle lifecycle.
-Phases in [`docs/ROADMAP.md`](docs/ROADMAP.md); dev loop in [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
+**What stands:** Phase 0–3 — the FastAPI engine (`app/`) runs the full job → progress → webhook →
+idle loop against a stub generator, verified end-to-end with no GPU ([`docs/ENGINE.md`](docs/ENGINE.md));
+the swappable `Generator` protocol, contract, checkpoints, and audio-as-master-clock all survive.
+
+**Retired (Direction v1):** `keyframe.py` (SDXL+IP-Adapter as the identity mechanism),
+`kenburns.py` (pan/zoom fill), and the SVD-XT A/B path. `assemble.py` (concat + audio mux) is reused.
 
 ## Key documents
 
