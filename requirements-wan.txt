@@ -19,6 +19,7 @@ diffusers==0.35.1            # WanImageToVideoPipeline, AutoencoderKLWan, WanVAC
 # If verify_wan.py --model Wan-AI/Wan2.2-TI2V-5B-Diffusers fails to load, switch to that.
 transformers>=4.49.0         # UMT5EncoderModel + CLIPVisionModel used by Wan
 accelerate>=1.1.1            # device mapping + enable_model_cpu_offload
+peft>=0.17.0                 # REQUIRED by diffusers 0.35 (base pins 0.13.2 -> import fails without this)
 safetensors>=0.4.5
 huggingface_hub>=0.26.2
 ftfy>=6.2.0                  # text cleanup expected by the Wan text encoder
