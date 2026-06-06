@@ -30,6 +30,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Render a story to real video with Wan 5B (24GB)")
     ap.add_argument("--job", required=True, help="path to a v1.1/1.2 job JSON (real URLs)")
     ap.add_argument("--work", default="./work", help="working dir for clips/output")
+    ap.add_argument("--new-id", action="store_true",
+                    help="generate a fresh random UUID job id for this run (recommended for a clean render)")
+    ap.add_argument("--job-id", default=None,
+                    help="explicit job id to use/resume (overrides the JSON). Pass the SAME id to resume.")
     ap.add_argument("--max-seconds", type=float, default=None, help="render only the first N seconds of the story")
     ap.add_argument("--max-scenes", type=int, default=None, help="render only the first N scenes")
     ap.add_argument("--width", type=int, default=832, help="snapped to a multiple of 16 (default 480p-ish)")
@@ -42,11 +46,31 @@ def main() -> None:
                     help="full pipeline on GPU instead of CPU offload (only if it fits)")
     args = ap.parse_args()
 
+    import uuid
+
     from app.generators.wan5b import Wan5BGenerator
     from app.models import JobRequest
 
     with open(args.job, encoding="utf-8") as f:
         job = JobRequest.model_validate_json(f.read())
+
+    # Real-UUID job ids. A fresh id => a fresh work dir => no chance of re-stitching
+    # stale clips from a previous (old Ken Burns) run under a reused job id.
+    if args.new_id and args.job_id:
+        ap.error("use --new-id OR --job-id, not both")
+    if args.new_id:
+        job = job.model_copy(update={"job_id": str(uuid.uuid4())})
+    elif args.job_id:
+        job = job.model_copy(update={"job_id": args.job_id})
+
+    out_dir = os.path.join(args.work, job.job_id, "wan5b")
+    print("=" * 72)
+    print("GENERATOR: Wan 2.2 TI2V-5B  (REAL video generation — not Ken Burns)")
+    print(f"job_id   : {job.job_id}")
+    print(f"OUTPUT   : {os.path.join(out_dir, 'final.mp4')}")
+    print(f"clips    : {os.path.join(out_dir, 'clips')}/")
+    print("(to RESUME this exact render later, re-run with: --job-id " + job.job_id + ")")
+    print("=" * 72)
 
     windows = job.scene_windows()
     n_total = len(windows)

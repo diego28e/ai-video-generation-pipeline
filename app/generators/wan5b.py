@@ -185,7 +185,10 @@ class Wan5BGenerator:
         import asyncio
 
         jdir = ensure_job_dir(work_dir, job.job_id)
-        clip_dir = os.path.join(jdir, "clips")
+        # Isolate Wan output under work/<job_id>/wan5b/ so a Wan render can NEVER pick up
+        # stale clips written by the old Ken Burns generator (work/<job_id>/clips/).
+        gen_dir = os.path.join(jdir, self.name)
+        clip_dir = os.path.join(gen_dir, "clips")
         os.makedirs(clip_dir, exist_ok=True)
 
         clips: list[str] = []
@@ -216,9 +219,9 @@ class Wan5BGenerator:
         if not clips:
             raise RuntimeError("no scenes rendered (check max_seconds/max_scenes)")
 
-        final_path = os.path.join(jdir, "final.mp4")
+        final_path = os.path.join(gen_dir, "final.mp4")
         partial = max_seconds is not None or max_scenes is not None
-        assemble(clips, job.audio.url, final_path, jdir,
+        assemble(clips, job.audio.url, final_path, gen_dir,
                  trim_seconds=rendered_seconds if partial else None)
         self._pipe = None
         return final_path
