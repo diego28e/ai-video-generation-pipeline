@@ -1,29 +1,44 @@
 # =============================================================================
-# Direction v2 — Wan video-model runtime (install ON THE A100 VM, AFTER the base
-# requirements.txt). These OVERRIDE the base diffusers pin (0.31.0 predates Wan).
+# Direction v2 — SELF-CONTAINED dependency set for the Wan VM (A100 or L4 stopgap).
 #
-# Reproducibility: as with the base set, these are intended top-level pins. The
-# REPRODUCIBLE artifact is requirements.lock.txt, produced by `pip freeze` AFTER
-# Gate G1' passes on the A100 (scripts/verify_wan.py). If a load fails on a
-# version mismatch, bump here, re-run G1', then re-freeze.
+# IMPORTANT: do NOT also install the old base requirements.txt on the Wan VM.
+# That file pins peft==0.13.2 / diffusers==0.31 / old transformers for the retired
+# SDXL stack, which CONFLICTS with Wan (diffusers 0.35 needs peft>=0.17). Layering
+# the two is what broke the env. setup_wan_env.sh installs ONLY this file (+ torch).
 #
-# torch / torchvision are NOT listed here — they come from the CUDA wheel index
-# and are installed by scripts/setup_wan_env.sh (A100 supports bf16; Wan needs it).
+# Versions are CAPPED below the next major on purpose: a bare `pip install -U` or
+# `--force-reinstall` will otherwise pull torch 2.12 / transformers 5.x / numpy 2.x,
+# which are incompatible with the cu121 torch and diffusers 0.35.
+#
+# torch / torchvision are NOT here — they come from the CUDA wheel index in
+# scripts/setup_wan_env.sh. Freeze requirements.lock.txt once G1' passes.
 # =============================================================================
 
-# --- Wan requires a much newer diffusers than the base set (Wan 2.2 I2V + FLF2V) ---
-diffusers==0.35.1            # WanImageToVideoPipeline, AutoencoderKLWan, WanVACEPipeline, FLF2V
-# NOTE: the small Wan 2.2 TI2V-5B (used for L4/24GB stopgap testing — see
-# docs/CINEMATIC_PIPELINE.md §9) may need diffusers from source instead of 0.35.1:
-#   pip install "git+https://github.com/huggingface/diffusers"
-# If verify_wan.py --model Wan-AI/Wan2.2-TI2V-5B-Diffusers fails to load, switch to that.
-transformers>=4.49.0         # UMT5EncoderModel + CLIPVisionModel used by Wan
-accelerate>=1.1.1            # device mapping + enable_model_cpu_offload
-peft>=0.17.0                 # REQUIRED by diffusers 0.35 (base pins 0.13.2 -> import fails without this)
+# --- Wan model runtime (diffusers 0.35: Wan 2.2 I2V/TI2V + FLF2V) ---
+diffusers==0.35.1
+transformers>=4.49,<5         # <5: transformers 5.x breaks diffusers 0.35 + pulls hub 1.x
+huggingface_hub>=0.26,<1.0    # <1.0: hub 1.x is incompatible with transformers 4.x
+accelerate>=1.1,<2
+peft>=0.17,<1                 # diffusers 0.35 REQUIRES peft>=0.17 (base pinned 0.13.2 -> import fails)
 safetensors>=0.4.5
-huggingface_hub>=0.26.2
-ftfy>=6.2.0                  # text cleanup expected by the Wan text encoder
+ftfy>=6.2.0
 einops>=0.8.0
 sentencepiece>=0.2.0
 
-# imageio / imageio-ffmpeg / pillow / numpy / opencv come from the base requirements.txt.
+# --- Image / video I/O ---
+numpy>=1.26,<2                # <2: cu121 torch 2.5.1 + opencv 4.10 expect numpy 1.x
+pillow>=10.4,<11
+imageio>=2.36
+imageio-ffmpeg>=0.5.1
+opencv-python-headless>=4.10,<5
+
+# --- Service layer (FastAPI engine + delivery) ---
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32
+pydantic>=2.9,<3
+pydantic-settings>=2.6
+httpx>=0.27,<1
+python-dotenv>=1.0
+structlog>=24.4
+tenacity>=9.0
+boto3>=1.35

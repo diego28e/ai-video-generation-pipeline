@@ -54,10 +54,10 @@ echo "==> Installing torch ${TORCH_VERSION} (+cu121) from ${CUDA_INDEX}"
   "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
   --index-url "${CUDA_INDEX}"
 
-echo "==> Installing base requirements"
-"$VENV_PY" -m pip install -r requirements.txt
-
-echo "==> Installing Wan overrides (bumps diffusers/transformers for Wan 2.2 + FLF2V)"
+# NOTE: do NOT install the old base requirements.txt here — it pins the retired
+# SDXL stack (peft==0.13.2 / diffusers==0.31) which conflicts with Wan and breaks
+# the import. requirements-wan.txt is the self-contained, version-capped Wan set.
+echo "==> Installing the Wan runtime (self-contained, capped versions)"
 "$VENV_PY" -m pip install -r requirements-wan.txt
 
 echo
